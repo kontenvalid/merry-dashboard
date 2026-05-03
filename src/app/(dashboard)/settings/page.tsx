@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,19 +12,22 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { 
   User, Mail, Shield, Bell, Palette, 
   Globe, Clock, Key, Save, CheckCircle,
-  Eye, EyeOff, AlertCircle, KeyRound
+  Eye, EyeOff, AlertCircle, KeyRound, Link2, RefreshCw, ExternalLink
 } from "lucide-react";
 
 export default function SettingsPage() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
+  const router = useRouter();
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
+  const [connecting, setConnecting] = useState(false);
+  const [mcpUrl, setMcpUrl] = useState<string | null>(null);
+  const [connectionStatus, setConnectionStatus] = useState<'idle' | 'connecting' | 'connected' | 'error'>('idle');
 
   // Settings state
-  const [composioApiKey, setComposioApiKey] = useState("");
-  const [showApiKey, setShowApiKey] = useState(false);
   const [apiKeySet, setApiKeySet] = useState(false);
+  const [showMcpUrl, setShowMcpUrl] = useState(false);
 
   const [profile, setProfile] = useState({
     name: session?.user?.name || "",
@@ -44,6 +48,59 @@ export default function SettingsPage() {
   // Check if admin
   const isAdmin = session?.user?.email === "kontenval.id@gmail.com";
 
+  // Connect to Composio MCP
+  const connectComposio = async () => {
+    setConnecting(true);
+    setError("");
+    try {
+      const res = await fetch('/api/composio/overview');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.mcpUrl) {
+          setMcpUrl(data.mcpUrl);
+          setConnectionStatus('connected');
+        } else if (data.connected) {
+          setConnectionStatus('connected');
+        } else {
+          setConnectionStatus('error');
+          setError(data.message || 'Failed to connect');
+        }
+      } else {
+        setConnectionStatus('error');
+        setError('Failed to connect to Composio');
+      }
+    } catch (err) {
+      setConnectionStatus('error');
+      setError('Connection error');
+    } finally {
+      setConnecting(false);
+    }
+  };
+
+  // Check MCP connection status
+  useEffect(() => {
+    if (session?.user) {
+      checkMCPConnection();
+    }
+  }, [session]);
+
+  const checkMCPConnection = async () => {
+    try {
+      const res = await fetch('/api/composio/overview');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.mcpUrl) {
+          setMcpUrl(data.mcpUrl);
+          setConnectionStatus('connected');
+        } else if (data.connected) {
+          setConnectionStatus('connected');
+        }
+      }
+    } catch (err) {
+      console.error('MCP check error:', err);
+    }
+  };
+
   // Fetch current settings on mount
   useEffect(() => {
     const fetchSettings = async () => {
@@ -52,10 +109,8 @@ export default function SettingsPage() {
         if (res.ok) {
           const data = await res.json();
           if (data.settings) {
-            if (data.settings.composioApiKey !== '') {
-              setComposioApiKey(data.settings.composioApiKey);
-              setApiKeySet(true);
-            }
+            // Composio API key is now handled server-side via environment variable
+            setApiKeySet(!!data.settings.composioApiKey || connectionStatus === 'connected');
             setSyncSettings({
               autoSync: data.settings.autoSync ?? true,
               syncInterval: data.settings.syncInterval ?? 60,
@@ -67,7 +122,7 @@ export default function SettingsPage() {
       }
     };
     fetchSettings();
-  }, []);
+  }, [connectionStatus]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -78,7 +133,7 @@ export default function SettingsPage() {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          composioApiKey: composioApiKey,
+          // Composio API key is now handled server-side via environment variable
           ...syncSettings,
         }),
       });
@@ -89,7 +144,6 @@ export default function SettingsPage() {
 
       setSaving(false);
       setSaved(true);
-      setApiKeySet(composioApiKey.length > 0);
       setTimeout(() => setSaved(false), 3000);
     } catch (err) {
       setSaving(false);
@@ -144,41 +198,86 @@ export default function SettingsPage() {
                 </a>
               </p>
               
-              <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <Input
-                    type={showApiKey ? "text" : "password"}
-                    value={composioApiKey}
-                    onChange={(e) => setComposioApiKey(e.target.value)}
-                    placeholder={apiKeySet ? "••••••••••••••••" : "Enter your Composio API key"}
-                    className="pr-10"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowApiKey(!showApiKey)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  >
-                    {showApiKey ? (
-                      <EyeOff className="w-4 h-4" />
-                    ) : (
-                      <Eye className="w-4 h-4" />
-                    )}
-                  </button>
-                </div>
-                <a 
-                    href="https://dashboard.composio.dev" 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-all duration-200 border border-input bg-background hover:bg-accent hover:text-accent-foreground px-4 py-2"
-                  >
-                    Get API Key
-                  </a>
-              </div>
+              {connectionStatus === 'idle' && (
+                <Button 
+                  onClick={connectComposio}
+                  disabled={connecting}
+                  className="w-full"
+                >
+                  <Link2 className="w-4 h-4 mr-2" />
+                  {connecting ? 'Connecting...' : 'Connect to Composio MCP'}
+                </Button>
+              )}
 
-              {apiKeySet && (
-                <div className="flex items-center gap-2 text-green-600 text-sm">
-                  <CheckCircle className="w-4 h-4" />
-                  <span>API key configured</span>
+              {connectionStatus === 'connected' && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-green-600 text-sm">
+                    <CheckCircle className="w-4 h-4" />
+                    <span>Connected to Composio MCP</span>
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      onClick={checkMCPConnection}
+                      className="ml-auto"
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                    </Button>
+                  </div>
+                  
+                  {mcpUrl && (
+                    <div className="space-y-2">
+                      <p className="text-xs text-muted-foreground">MCP Server URL:</p>
+                      <div className="relative">
+                        <Input
+                          type={showMcpUrl ? "text" : "password"}
+                          value={mcpUrl}
+                          readOnly
+                          className="pr-10 text-xs font-mono"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowMcpUrl(!showMcpUrl)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        >
+                          {showMcpUrl ? (
+                            <EyeOff className="w-4 h-4" />
+                          ) : (
+                            <Eye className="w-4 h-4" />
+                          )}
+                        </button>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Use this URL to connect AI agents like Claude, Cursor, or Codex to your Composio MCP server.
+                      </p>
+                      <a
+                        href="https://docs.composio.dev/docs/single-toolkit-mcp"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                        View integration guide
+                      </a>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {connectionStatus === 'error' && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-red-600 text-sm">
+                    <AlertCircle className="w-4 h-4" />
+                    <span>{error || 'Connection failed'}</span>
+                  </div>
+                  <Button 
+                    onClick={connectComposio}
+                    disabled={connecting}
+                    variant="outline"
+                    className="w-full"
+                  >
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    Retry Connection
+                  </Button>
                 </div>
               )}
 
