@@ -14,35 +14,33 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   callbacks: {
-    async session({ session, user }) {
-      // Add role to session
+    async session({ session, token }) {
+      // Add role from token (set in jwt callback)
       if (session.user) {
-        // Get fresh user data from DB to ensure role is correct
-        const dbUser = await prisma.user.findUnique({
-          where: { email: session.user.email ?? undefined },
-          select: { role: true, email: true },
-        });
-        
-        // kontenval.id@gmail.com is always ADMIN
-        const role = session.user.email?.toLowerCase() === FIRST_ADMIN_EMAIL.toLowerCase()
-          ? "ADMIN"
-          : dbUser?.role ?? "MEMBER";
-        
-        (session.user as any).role = role;
-        (session.user as any).id = user.id;
+        (session.user as any).role = token.role ?? "MEMBER";
+        (session.user as any).id = token.id;
       }
       return session;
     },
     async jwt({ token, user }) {
-      // On initial sign in
+      // On initial sign in, user object is available
       if (user) {
         // kontenval.id@gmail.com is always ADMIN
-        const role = user.email?.toLowerCase() === FIRST_ADMIN_EMAIL.toLowerCase()
-          ? "ADMIN"
-          : (user as any).role ?? "MEMBER";
-        
-        token.role = role;
+        const isFirstAdmin = user.email?.toLowerCase() === FIRST_ADMIN_EMAIL.toLowerCase();
+        token.role = isFirstAdmin ? "ADMIN" : "MEMBER";
         token.id = user.id;
+        
+        // Also update user's role in database for first admin
+        if (isFirstAdmin) {
+          try {
+            await prisma.user.update({
+              where: { id: user.id },
+              data: { role: "ADMIN" },
+            }).catch(() => {}); // Ignore errors
+          } catch (e) {
+            // Ignore
+          }
+        }
       }
       return token;
     },
@@ -54,6 +52,7 @@ export const authOptions: NextAuthOptions = {
   session: {
     strategy: "jwt",
   },
+  secret: process.env.NEXTAUTH_SECRET,
 };
 
 // Helper to check if user is admin

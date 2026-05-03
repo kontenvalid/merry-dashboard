@@ -9,8 +9,9 @@ export async function middleware(request: NextRequest) {
   const protectedPaths = ["/dashboard", "/analytics", "/social", "/ads", "/settings", "/products", "/users", "/roles"];
   const isProtectedPath = protectedPaths.some(path => request.nextUrl.pathname.startsWith(path));
   
+  // If accessing protected route without token, redirect to login
   if (isProtectedPath && !token) {
-    const loginUrl = new URL("/", request.url);
+    const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("callbackUrl", request.nextUrl.pathname);
     return NextResponse.redirect(loginUrl);
   }
