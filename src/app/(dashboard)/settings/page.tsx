@@ -135,12 +135,12 @@ export default function SettingsPage() {
                 Enter your Composio API key to connect your social media accounts and Meta Ads.
                 Get your API key from{" "}
                 <a 
-                  href="https://app.composio.com" 
+                  href="https://dashboard.composio.dev" 
                   target="_blank" 
                   rel="noopener noreferrer"
                   className="text-blue-600 hover:underline"
                 >
-                  app.composio.com
+                  dashboard.composio.dev
                 </a>
               </p>
               
@@ -166,7 +166,7 @@ export default function SettingsPage() {
                   </button>
                 </div>
                 <a 
-                    href="https://app.composio.com" 
+                    href="https://dashboard.composio.dev" 
                     target="_blank" 
                     rel="noopener noreferrer"
                     className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-all duration-200 border border-input bg-background hover:bg-accent hover:text-accent-foreground px-4 py-2"
