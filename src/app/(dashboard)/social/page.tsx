@@ -25,7 +25,7 @@ const REAL_ACCOUNTS = {
     name: 'kontenval.id',
     username: '@kontenval.id',
     type: 'Creator',
-    followers: 0, // May need API access
+    followers: 0,
     mediaCount: 7,
     link: 'https://instagram.com/kontenval.id'
   },
@@ -56,108 +56,129 @@ export default function SocialPage() {
   const [loading, setLoading] = useState(false);
   const [accounts, setAccounts] = useState<ConnectedAccount[]>([]);
   const [loadingData, setLoadingData] = useState(true);
+  const [lastSync, setLastSync] = useState<Date | null>(null);
 
+  // Load accounts on mount
   useEffect(() => {
-    // Load real account data
-    const loadAccounts = async () => {
-      try {
-        const response = await fetch('/api/composio/overview');
-        if (response.ok) {
-          const data = await response.json();
-          
-          const connected: ConnectedAccount[] = [];
-          
-          // Facebook
-          if (data.facebook?.connected && data.facebook.pages?.[0]) {
-            const fb = data.facebook.pages[0];
-            connected.push({
-              id: fb.id,
-              platform: 'facebook',
-              name: fb.name || 'kontenval.id',
-              username: `@${fb.username || 'kontenval.id'}`,
-              followers: (fb.followersCount || fb.fanCount || 6).toLocaleString(),
-              status: 'active',
-              connectedAt: '2024-04-30',
-              link: fb.link || 'https://www.facebook.com/kontenval.id'
-            });
-          }
-          
-          // Instagram
-          if (data.instagram?.connected) {
-            connected.push({
-              id: 'instagram',
-              platform: 'instagram',
-              name: data.instagram.fullName || 'kontenval.id',
-              username: `@${data.instagram.username || 'kontenval.id'}`,
-              followers: (data.instagram.followersCount || 0).toLocaleString(),
-              status: 'active',
-              connectedAt: '2024-04-30',
-              link: data.instagram.profileUrl || 'https://instagram.com/kontenval.id'
-            });
-          }
-          
-          // YouTube
-          if (data.youtube?.connected) {
-            connected.push({
-              id: data.youtube.channelId || 'youtube',
-              platform: 'youtube',
-              name: data.youtube.title || 'kontenval id',
-              username: data.youtube.handle || '@kontenvalid',
-              followers: (data.youtube.subscriberCount || 11).toLocaleString(),
-              status: 'active',
-              connectedAt: '2024-04-30',
-              link: `https://youtube.com${data.youtube.handle || '/@kontenvalid'}`
-            });
-          }
-          
-          setAccounts(connected);
-        }
-      } catch (error) {
-        console.error('Failed to load accounts:', error);
-        // Fallback to static real data
-        setAccounts([
-          {
-            id: REAL_ACCOUNTS.facebook.id,
-            platform: 'facebook',
-            name: REAL_ACCOUNTS.facebook.name,
-            username: REAL_ACCOUNTS.facebook.username,
-            followers: REAL_ACCOUNTS.facebook.followers.toLocaleString(),
-            status: 'active',
-            connectedAt: '2024-04-30',
-            link: REAL_ACCOUNTS.facebook.link
-          },
-          {
-            id: REAL_ACCOUNTS.instagram.id,
-            platform: 'instagram',
-            name: REAL_ACCOUNTS.instagram.name,
-            username: REAL_ACCOUNTS.instagram.username,
-            followers: REAL_ACCOUNTS.instagram.followers.toLocaleString(),
-            status: 'active',
-            connectedAt: '2024-04-30',
-            link: REAL_ACCOUNTS.instagram.link
-          },
-          {
-            id: REAL_ACCOUNTS.youtube.id,
-            platform: 'youtube',
-            name: REAL_ACCOUNTS.youtube.name,
-            username: REAL_ACCOUNTS.youtube.username,
-            followers: REAL_ACCOUNTS.youtube.subscribers.toLocaleString(),
-            status: 'active',
-            connectedAt: '2024-04-30',
-            link: REAL_ACCOUNTS.youtube.link
-          }
-        ]);
-      } finally {
-        setLoadingData(false);
-      }
-    };
-    
     loadAccounts();
   }, []);
 
-  const handleRefresh = () => {
+  const loadAccounts = async () => {
+    try {
+      const response = await fetch('/api/composio/overview');
+      if (response.ok) {
+        const data = await response.json();
+        updateAccountsFromData(data);
+      }
+    } catch (error) {
+      console.error('Failed to load accounts:', error);
+    } finally {
+      setLoadingData(false);
+    }
+  };
+
+  const updateAccountsFromData = (data: any) => {
+    const connected: ConnectedAccount[] = [];
+    
+    // Facebook
+    if (data.data?.facebook?.connected || data.data?.facebook?.pageId) {
+      const fb = data.data.facebook;
+      connected.push({
+        id: fb.pageId || REAL_ACCOUNTS.facebook.id,
+        platform: 'facebook',
+        name: fb.pageName || REAL_ACCOUNTS.facebook.name,
+        username: fb.pageName ? `@${fb.pageName.toLowerCase().replace(/\s+/g, '')}` : REAL_ACCOUNTS.facebook.username,
+        followers: (fb.followers || fb.fanCount || REAL_ACCOUNTS.facebook.followers).toLocaleString(),
+        status: 'active',
+        connectedAt: '2024-04-30',
+        link: fb.link || REAL_ACCOUNTS.facebook.link
+      });
+    }
+    
+    // Instagram
+    if (data.data?.instagram?.connected || data.data?.instagram?.username) {
+      const ig = data.data.instagram;
+      connected.push({
+        id: ig.username || 'instagram',
+        platform: 'instagram',
+        name: ig.fullName || ig.username || REAL_ACCOUNTS.instagram.name,
+        username: ig.username ? `@${ig.username}` : REAL_ACCOUNTS.instagram.username,
+        followers: (ig.followers || REAL_ACCOUNTS.instagram.followers).toLocaleString(),
+        status: 'active',
+        connectedAt: '2024-04-30',
+        link: ig.link || REAL_ACCOUNTS.instagram.link
+      });
+    }
+    
+    // YouTube
+    if (data.data?.youtube?.connected || data.data?.youtube?.channelId) {
+      const yt = data.data.youtube;
+      connected.push({
+        id: yt.channelId || 'youtube',
+        platform: 'youtube',
+        name: yt.channelName || yt.title || REAL_ACCOUNTS.youtube.name,
+        username: yt.handle || REAL_ACCOUNTS.youtube.username,
+        followers: (yt.subscribers || yt.subscriberCount || REAL_ACCOUNTS.youtube.subscribers).toLocaleString(),
+        status: 'active',
+        connectedAt: '2024-04-30',
+        link: yt.link || REAL_ACCOUNTS.youtube.link
+      });
+    }
+    
+    // If no real data from API, use fallback real data
+    if (connected.length === 0) {
+      connected.push(
+        {
+          id: REAL_ACCOUNTS.facebook.id,
+          platform: 'facebook',
+          name: REAL_ACCOUNTS.facebook.name,
+          username: REAL_ACCOUNTS.facebook.username,
+          followers: REAL_ACCOUNTS.facebook.followers.toLocaleString(),
+          status: 'active',
+          connectedAt: '2024-04-30',
+          link: REAL_ACCOUNTS.facebook.link
+        },
+        {
+          id: REAL_ACCOUNTS.instagram.id,
+          platform: 'instagram',
+          name: REAL_ACCOUNTS.instagram.name,
+          username: REAL_ACCOUNTS.instagram.username,
+          followers: REAL_ACCOUNTS.instagram.followers.toLocaleString(),
+          status: 'active',
+          connectedAt: '2024-04-30',
+          link: REAL_ACCOUNTS.instagram.link
+        },
+        {
+          id: REAL_ACCOUNTS.youtube.id,
+          platform: 'youtube',
+          name: REAL_ACCOUNTS.youtube.name,
+          username: REAL_ACCOUNTS.youtube.username,
+          followers: REAL_ACCOUNTS.youtube.subscribers.toLocaleString(),
+          status: 'active',
+          connectedAt: '2024-04-30',
+          link: REAL_ACCOUNTS.youtube.link
+        }
+      );
+    }
+    
+    setAccounts(connected);
+    setLastSync(new Date());
+  };
+
+  const handleRefresh = async () => {
     setLoading(true);
-    setTimeout(() => setLoading(false), 1500);
+    try {
+      // Fetch fresh data from Composio API
+      const response = await fetch('/api/composio/overview?refresh=' + Date.now());
+      if (response.ok) {
+        const data = await response.json();
+        updateAccountsFromData(data);
+      }
+    } catch (error) {
+      console.error('Failed to refresh accounts:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (loadingData) {
@@ -178,10 +199,17 @@ export default function SocialPage() {
             Manage your connected platforms
           </p>
         </div>
-        <Button onClick={handleRefresh} disabled={loading}>
-          <RefreshCw className={`w-4 h-4 mr-2 ${loading ? "animate-spin" : ""}`} />
-          Refresh Data
-        </Button>
+        <div className="flex items-center gap-2">
+          {lastSync && (
+            <span className="text-sm text-muted-foreground">
+              Last sync: {lastSync.toLocaleTimeString()}
+            </span>
+          )}
+          <Button onClick={handleRefresh} disabled={loading}>
+            <RefreshCw className={`w-4 h-4 mr-2 ${loading ? "animate-spin" : ""}`} />
+            Refresh Data
+          </Button>
+        </div>
       </div>
 
       {/* Connected Accounts */}

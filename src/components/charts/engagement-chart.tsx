@@ -11,7 +11,7 @@ import {
   Legend,
   Cell,
 } from "recharts";
-import { useColors } from "../platform-badge";
+import { useChartColors } from "@/lib/chart-colors";
 
 interface EngagementChartProps {
   data: { name: string; engagement: number; reach: number }[];
@@ -19,9 +19,15 @@ interface EngagementChartProps {
 }
 
 const PLATFORM_COLORS = ["#1877F2", "#E4405F", "#FF0000", "#0668E1"];
+const PLATFORM_GOOGLE_COLORS = [
+  "hsl(199 89% 48%)",   // Facebook blue
+  "hsl(343 79% 55%)",   // Instagram pink
+  "hsl(0 100% 50%)",    // YouTube red
+  "hsl(213 94% 67%)",   // Meta blue
+];
 
 export function EngagementChart({ data, className }: EngagementChartProps) {
-  const { colors } = useColors();
+  const colors = useChartColors();
 
   return (
     <div className={className}>
@@ -48,15 +54,15 @@ export function EngagementChart({ data, className }: EngagementChartProps) {
           <Legend />
           <Bar dataKey="engagement" name="Engagement" radius={[8, 8, 0, 0]}>
             {data.map((_, index) => (
-              <Cell key={`cell-${index}`} fill={PLATFORM_COLORS[index % PLATFORM_COLORS.length]} />
+              <Cell key={`cell-${index}`} fill={PLATFORM_GOOGLE_COLORS[index % PLATFORM_GOOGLE_COLORS.length]} />
             ))}
           </Bar>
           <Bar dataKey="reach" name="Reach" radius={[8, 8, 0, 0]}>
             {data.map((_, index) => (
               <Cell
                 key={`cell-${index}`}
-                fill={PLATFORM_COLORS[index % PLATFORM_COLORS.length]}
-                fillOpacity={0.6}
+                fill={PLATFORM_GOOGLE_COLORS[index % PLATFORM_GOOGLE_COLORS.length]}
+                fillOpacity={0.5}
               />
             ))}
           </Bar>

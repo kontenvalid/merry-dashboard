@@ -55,11 +55,10 @@ export default function SettingsPage() {
   // Helper to get sync interval display text
   const getSyncIntervalText = (minutes: number) => {
     if (minutes < 60) return `${minutes} minutes`
-    if (minutes === 60) return 'Hourly (via cron)'
-    if (minutes === 180) return 'Every 3 hours'
+    if (minutes === 60) return 'Every hour'
     if (minutes === 360) return 'Every 6 hours'
     if (minutes === 720) return 'Every 12 hours'
-    if (minutes === 1440) return 'Daily'
+    if (minutes === 1440) return 'Daily (24 hours)'
     return `${minutes} minutes`
   };
 
@@ -547,11 +546,10 @@ export default function SettingsPage() {
                     value={syncSettings.syncInterval}
                     onChange={(e) => setSyncSettings({...syncSettings, syncInterval: Number(e.target.value)})}
                   >
-                    <option value={15}>Every 15 minutes</option>
-                    <option value={30}>Every 30 minutes</option>
                     <option value={60}>Every hour</option>
-                    <option value={120}>Every 2 hours</option>
                     <option value={360}>Every 6 hours</option>
+                    <option value={720}>Every 12 hours</option>
+                    <option value={1440}>Daily (24 hours)</option>
                   </select>
                 </div>
               )}

@@ -5,40 +5,213 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { AdPerformanceChart } from "@/components/charts/ad-performance-chart";
-import { useState } from "react";
-import { DollarSign, Eye, MousePointer, TrendingUp, RefreshCw } from "lucide-react";
+import { useState, useEffect } from "react";
+import { DollarSign, Eye, MousePointer, TrendingUp, RefreshCw, TrendingDown, AlertCircle, Loader2 } from "lucide-react";
 import { StatCard } from "@/components/stat-card";
 
-const adData = [
-  { date: "Mon", spend: 45, impressions: 12500, clicks: 320 },
-  { date: "Tue", spend: 52, impressions: 14200, clicks: 380 },
-  { date: "Wed", spend: 48, impressions: 13800, clicks: 350 },
-  { date: "Thu", spend: 55, impressions: 15500, clicks: 420 },
-  { date: "Fri", spend: 60, impressions: 16800, clicks: 450 },
-  { date: "Sat", spend: 58, impressions: 16200, clicks: 430 },
-  { date: "Sun", spend: 62, impressions: 17500, clicks: 470 },
-];
-
-const adAccounts = [
-  { id: "act_66362051", name: "Main Account (USD)", currency: "USD", status: "active" },
+// Real Meta Ads account data
+const AD_ACCOUNTS = [
   { id: "act_2180078045608935", name: "Indonesian Account (IDR)", currency: "IDR", status: "active" },
   { id: "act_1985101938922115", name: "Barqun Account (IDR)", currency: "IDR", status: "active" },
 ];
 
-const campaigns = [
-  { name: "Brand Awareness Q1", status: "active", budget: "$500", spend: "$245", roas: "3.2x" },
-  { name: "Product Launch Campaign", status: "active", budget: "$300", spend: "$180", roas: "2.8x" },
-  { name: "Retargeting - Website Visitors", status: "paused", budget: "$200", spend: "$89", roas: "4.1x" },
-];
+interface Campaign {
+  name: string;
+  status: "active" | "paused";
+  budget: number;
+  spend: number;
+  roas: number;
+  currency: string;
+}
+
+interface AdStats {
+  totalSpend: number;
+  impressions: number;
+  clicks: number;
+  roas: number;
+  currency: string;
+}
 
 export default function AdsPage() {
   const [loading, setLoading] = useState(false);
+  const [loadingData, setLoadingData] = useState(true);
   const [selectedAccount, setSelectedAccount] = useState("all");
+  const [adStats, setAdStats] = useState<AdStats>({
+    totalSpend: 0,
+    impressions: 0,
+    clicks: 0,
+    roas: 0,
+    currency: 'IDR'
+  });
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [adData, setAdData] = useState<{date: string; spend: number; impressions: number; clicks: number}[]>([]);
+  const [apiError, setApiError] = useState<string | null>(null);
 
-  const handleRefresh = () => {
+  // Fetch real ad data from API
+  useEffect(() => {
+    const fetchAdData = async () => {
+      try {
+        const response = await fetch('/api/composio/metaads');
+        if (response.ok) {
+          const data = await response.json();
+          
+          if (data.connected) {
+            // Real data from Meta Ads API
+            const demo = data.demo;
+            
+            if (demo?.campaigns) {
+              setCampaigns(demo.campaigns.map((c: any) => ({
+                name: c.name,
+                status: c.status === 'ACTIVE' ? 'active' : 'paused',
+                budget: c.spend * 1.5, // Estimate budget from spend
+                spend: c.spend,
+                roas: c.roas,
+                currency: 'IDR'
+              })));
+            }
+            
+            if (demo?.daily) {
+              setAdData(demo.daily.map((d: any) => ({
+                date: new Date(d.date).toLocaleDateString('en-US', { weekday: 'short' }),
+                spend: d.spend,
+                impressions: d.impressions,
+                clicks: d.clicks
+              })));
+            }
+            
+            if (data.summary) {
+              setAdStats({
+                totalSpend: data.summary.totalSpend || 0,
+                impressions: data.summary.totalImpressions || 0,
+                clicks: data.summary.totalConversions || 0,
+                roas: data.summary.averageROAS || 0,
+                currency: 'IDR'
+              });
+            }
+          } else if (data.error) {
+            setApiError(data.error);
+            // Use demo data when API is disconnected
+            const demo = data.demo;
+            if (demo?.campaigns) {
+              setCampaigns(demo.campaigns.map((c: any) => ({
+                name: c.name,
+                status: c.status === 'ACTIVE' ? 'active' : 'paused',
+                budget: c.spend * 1.5,
+                spend: c.spend,
+                roas: c.roas,
+                currency: 'IDR'
+              })));
+            }
+            if (demo?.daily) {
+              setAdData(demo.daily.map((d: any) => ({
+                date: new Date(d.date).toLocaleDateString('en-US', { weekday: 'short' }),
+                spend: d.spend,
+                impressions: d.impressions,
+                clicks: d.clicks
+              })));
+            }
+            if (data.summary) {
+              setAdStats({
+                totalSpend: data.summary.totalSpend || 0,
+                impressions: data.summary.totalImpressions || 0,
+                clicks: data.summary.totalConversions || 0,
+                roas: data.summary.averageROAS || 0,
+                currency: 'IDR'
+              });
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch ad data:', error);
+        setApiError('Failed to fetch ad data');
+      } finally {
+        setLoadingData(false);
+      }
+    };
+
+    fetchAdData();
+  }, []);
+
+  const handleRefresh = async () => {
     setLoading(true);
-    setTimeout(() => setLoading(false), 2000);
+    try {
+      const response = await fetch('/api/composio/metaads');
+      if (response.ok) {
+        const data = await response.json();
+        
+        const demo = data.demo || data;
+        
+        if (demo?.campaigns) {
+          setCampaigns(demo.campaigns.map((c: any) => ({
+            name: c.name,
+            status: c.status === 'ACTIVE' ? 'active' : 'paused',
+            budget: c.spend * 1.5,
+            spend: c.spend,
+            roas: c.roas,
+            currency: 'IDR'
+          })));
+        }
+        
+        if (demo?.daily) {
+          setAdData(demo.daily.map((d: any) => ({
+            date: new Date(d.date).toLocaleDateString('en-US', { weekday: 'short' }),
+            spend: d.spend,
+            impressions: d.impressions,
+            clicks: d.clicks
+          })));
+        }
+        
+        if (data.summary) {
+          setAdStats({
+            totalSpend: data.summary.totalSpend || 0,
+            impressions: data.summary.totalImpressions || 0,
+            clicks: data.summary.totalConversions || 0,
+            roas: data.summary.averageROAS || 0,
+            currency: 'IDR'
+          });
+        }
+        
+        if (data.error) {
+          setApiError(data.error);
+        } else {
+          setApiError(null);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to refresh:', error);
+    } finally {
+      setLoading(false);
+    }
   };
+
+  const formatCurrency = (amount: number, currency: string = 'IDR') => {
+    if (currency === 'IDR') {
+      if (amount >= 1000000) {
+        return `Rp ${(amount / 1000000).toFixed(1)}M`;
+      } else if (amount >= 1000) {
+        return `Rp ${(amount / 1000).toFixed(0)}K`;
+      }
+      return `Rp ${amount.toLocaleString()}`;
+    }
+    return `$${amount.toFixed(2)}`;
+  };
+
+  const formatNumber = (num: number) => {
+    if (num >= 1000000) {
+      return `${(num / 1000000).toFixed(1)}M`;
+    } else if (num >= 1000) {
+      return `${(num / 1000).toFixed(1)}K`;
+    }
+    return num.toLocaleString();
+  };
+
+  if (loadingData) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -54,7 +227,7 @@ export default function AdsPage() {
           <Select
             options={[
               { value: "all", label: "All Accounts" },
-              ...adAccounts.map((acc) => ({ value: acc.id, label: acc.name })),
+              ...AD_ACCOUNTS.map((acc) => ({ value: acc.id, label: acc.name })),
             ]}
             value={selectedAccount}
             onChange={(e) => setSelectedAccount(e.target.value)}
@@ -67,17 +240,27 @@ export default function AdsPage() {
         </div>
       </div>
 
+      {/* API Error Alert */}
+      {apiError && (
+        <Card className="border-amber-200 bg-amber-50 dark:bg-amber-900/20">
+          <CardContent className="flex items-center gap-2 py-3">
+            <AlertCircle className="w-5 h-5 text-amber-500" />
+            <span className="text-amber-600 text-sm">{apiError} - Showing demo data</span>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Ad Accounts */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
             <span>Connected Ad Accounts</span>
-            <Badge variant="success">{adAccounts.length} Active</Badge>
+            <Badge variant="success">{AD_ACCOUNTS.length} Active</Badge>
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {adAccounts.map((account) => (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {AD_ACCOUNTS.map((account) => (
               <div
                 key={account.id}
                 className="p-4 rounded-xl border bg-card hover:shadow-md transition-all cursor-pointer"
@@ -101,7 +284,7 @@ export default function AdsPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           title="Total Spend"
-          value="$324"
+          value={formatCurrency(adStats.totalSpend)}
           subtitle="This week"
           trend={{ value: 15.3, isPositive: false }}
           icon={<DollarSign className="w-6 h-6 text-blue-600" />}
@@ -111,7 +294,7 @@ export default function AdsPage() {
         />
         <StatCard
           title="Impressions"
-          value="90.5K"
+          value={formatNumber(adStats.impressions)}
           subtitle="This week"
           trend={{ value: 22.1, isPositive: true }}
           icon={<Eye className="w-6 h-6 text-green-600" />}
@@ -120,8 +303,8 @@ export default function AdsPage() {
           borderClass="border-green-200 dark:border-green-800"
         />
         <StatCard
-          title="Clicks"
-          value="2,820"
+          title="Conversions"
+          value={formatNumber(adStats.clicks)}
           subtitle="This week"
           trend={{ value: 18.5, isPositive: true }}
           icon={<MousePointer className="w-6 h-6 text-purple-600" />}
@@ -131,7 +314,7 @@ export default function AdsPage() {
         />
         <StatCard
           title="Avg. ROAS"
-          value="3.4x"
+          value={`${adStats.roas.toFixed(1)}x`}
           subtitle="Return on ad spend"
           trend={{ value: 5.2, isPositive: true }}
           icon={<TrendingUp className="w-6 h-6 text-amber-600" />}
@@ -156,7 +339,7 @@ export default function AdsPage() {
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
             <span>Recent Campaigns</span>
-            <Button size="sm">View All</Button>
+            <Badge variant="secondary">{campaigns.length} campaigns</Badge>
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -168,7 +351,11 @@ export default function AdsPage() {
               >
                 <div className="flex items-center gap-4">
                   <div className="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                    <TrendingUp className="w-5 h-5 text-blue-600" />
+                    {campaign.status === 'active' ? (
+                      <TrendingUp className="w-5 h-5 text-blue-600" />
+                    ) : (
+                      <TrendingDown className="w-5 h-5 text-gray-400" />
+                    )}
                   </div>
                   <div>
                     <p className="font-medium">{campaign.name}</p>
@@ -180,17 +367,23 @@ export default function AdsPage() {
                         {campaign.status}
                       </Badge>
                       <span className="text-sm text-muted-foreground">
-                        Budget: {campaign.budget}
+                        Budget: {formatCurrency(campaign.budget)}
                       </span>
                     </div>
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="text-lg font-bold">${campaign.spend}</p>
-                  <p className="text-sm text-green-600">ROAS: {campaign.roas}</p>
+                  <p className="text-lg font-bold">{formatCurrency(campaign.spend)}</p>
+                  <p className="text-sm text-green-600">ROAS: {campaign.roas.toFixed(1)}x</p>
                 </div>
               </div>
             ))}
+            {campaigns.length === 0 && (
+              <div className="text-center py-8 text-muted-foreground">
+                <p>No campaigns found</p>
+                <p className="text-sm">Connect Meta Ads in Settings to see your campaigns</p>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
