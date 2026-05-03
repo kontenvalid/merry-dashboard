@@ -52,6 +52,17 @@ export default function SettingsPage() {
   // Check if admin
   const isAdmin = session?.user?.email === "kontenval.id@gmail.com";
 
+  // Helper to get sync interval display text
+  const getSyncIntervalText = (minutes: number) => {
+    if (minutes < 60) return `${minutes} minutes`
+    if (minutes === 60) return 'Hourly (via cron)'
+    if (minutes === 180) return 'Every 3 hours'
+    if (minutes === 360) return 'Every 6 hours'
+    if (minutes === 720) return 'Every 12 hours'
+    if (minutes === 1440) return 'Daily'
+    return `${minutes} minutes`
+  };
+
   // Fetch Consumer API Key status from server
   const fetchConsumerApiKeyStatus = async () => {
     try {
@@ -371,11 +382,11 @@ export default function SettingsPage() {
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-xs text-muted-foreground">Sync:</span>
-                      <span className="text-xs">Hourly (via cron)</span>
+                      <span className="text-xs">{getSyncIntervalText(syncSettings.syncInterval)}</span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-muted-foreground">Header:</span>
-                      <span className="text-xs font-mono">x-consumer-api-key: [set]</span>
+                      <span className="text-xs text-muted-foreground">Auto Sync:</span>
+                      <span className="text-xs">{syncSettings.autoSync ? 'Enabled' : 'Disabled'}</span>
                     </div>
                   </div>
                   
