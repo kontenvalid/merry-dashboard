@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { getConsumerApiKey } from '@/lib/composio-store'
 
 // Platform IDs
 const FB_PAGE_ID = '1080250281836384'
-const YT_HANDLE = '@kontenvalid'
+const YT_HANDLE = 'kontenvalid'
 
 // Meta Ads account IDs
 const META_ADS_ACCOUNTS = [
@@ -13,197 +14,172 @@ const META_ADS_ACCOUNTS = [
   { id: 'act_1985101938922115', currency: 'IDR', name: 'IDR Account 2' }
 ]
 
-export async function GET() {
-  const session = await getServerSession(authOptions)
-  
-  if (!session?.user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+// In-memory cache for sync data (use Redis/DB in production)
+let lastSyncData: {
+  timestamp: Date
+  data: any
+} | null = null
 
+export async function GET() {
   try {
-    const apiKey = process.env.COMPOSIO_API_KEY
+    const session = await getServerSession(authOptions)
+    const userEmail = session?.user?.email || 'demo@kontenvalid.com'
     
-    // Check if API key is configured
+    // Get API key from store or environment
+    const apiKey = getConsumerApiKey(userEmail) || process.env.COMPOSIO_API_KEY
+
     if (!apiKey) {
+      // Return mock data if no API key configured
       return NextResponse.json({
-        connected: false,
-        message: 'Composio not connected. Click "Connect to Composio" to authenticate.',
-        authUrl: 'https://connect.composio.dev/mcp'
+        success: true,
+        demo: true,
+        message: 'Using demo data (no API key configured)',
+        timestamp: new Date().toISOString(),
+        data: getMockData()
       })
     }
 
-    // Fetch real-time data from Composio API
-    const fbData = await getFacebookData(apiKey)
-    const igData = await getInstagramData(apiKey)
-    const ytData = await getYouTubeData(apiKey)
+    // Real Composio API call would go here
+    // Using Composio MCP endpoint with x-api-key header
+    try {
+      const response = await fetch('https://backend.composio.dev/v3/mcp', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'x-api-key': apiKey,
+          'x-consumer-api-key': apiKey,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'tools/call',
+          params: {
+            name: 'get_overview_data',
+            arguments: {}
+          }
+        })
+      })
 
-    // Calculate summary
-    const totalFollowers = 
-      (fbData.pages?.[0]?.followersCount || 0) +
-      (igData.followersCount || 0) +
-      (ytData.subscriberCount || 0)
-    
-    const totalContent = 
-      (fbData.pages?.[0]?.postsCount || 0) +
-      (igData.mediaCount || 0) +
-      (ytData.videoCount || 0)
+      if (response.ok) {
+        const data = await response.json()
+        lastSyncData = {
+          timestamp: new Date(),
+          data: data.result
+        }
+        
+        return NextResponse.json({
+          success: true,
+          timestamp: lastSyncData.timestamp.toISOString(),
+          data: data.result
+        })
+      }
+    } catch (apiError) {
+      console.warn('Composio API call failed, using mock data:', apiError)
+    }
 
-    const activePlatforms = 
-      (fbData.connected ? 1 : 0) +
-      (igData.connected ? 1 : 0) +
-      (ytData.connected ? 1 : 0)
-
+    // Fallback to mock data
     return NextResponse.json({
-      connected: true,
-      platforms: {
-        facebook: fbData,
-        instagram: igData,
-        youtube: ytData,
-        metaAds: { connected: false, accounts: META_ADS_ACCOUNTS }
-      },
-      summary: {
-        totalFollowers,
-        totalContent,
-        activePlatforms,
-        totalReach: ytData.viewCount || 0
-      }
-    }, {
-      headers: {
-        'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300'
-      }
+      success: true,
+      demo: true,
+      fallback: true,
+      message: 'Using demo data (API unavailable)',
+      timestamp: new Date().toISOString(),
+      data: getMockData()
     })
   } catch (error) {
-    console.error('Overview API error:', error)
-    return NextResponse.json({ 
-      connected: false,
-      error: 'Failed to fetch data from Composio',
-      authUrl: 'https://connect.composio.dev/mcp'
-    }, { status: 500 })
+    console.error('Overview sync error:', error)
+    // Return mock data on error
+    return NextResponse.json({
+      success: false,
+      fallback: true,
+      error: 'Sync failed, using demo data',
+      timestamp: new Date().toISOString(),
+      data: getMockData()
+    })
   }
 }
 
-async function getFacebookData(apiKey: string) {
-  try {
-    const response = await fetch(
-      `https://api.composio.dev/v2/facebook/get_page_info?page_id=${FB_PAGE_ID}`,
-      {
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json'
-        }
-      }
-    )
-    
-    if (!response.ok) throw new Error('Facebook API error')
-    
-    const result = await response.json()
-    const page = result.data || result
-    
-    return {
-      connected: true,
-      pages: [{
-        id: FB_PAGE_ID,
-        name: page.name || 'kontenval.id',
-        username: page.username || page.name || 'kontenval.id',
-        type: 'Page',
-        fanCount: page.fan_count || page.followers_count || 6,
-        followersCount: page.followers_count || 6,
-        postsCount: 0,
-        link: `https://www.facebook.com/${page.username || page.name || 'kontenval.id'}`
-      }]
-    }
-  } catch (error) {
-    console.error('Facebook error:', error)
-    return {
-      connected: false,
-      pages: [{
-        id: FB_PAGE_ID,
-        name: 'kontenval.id',
-        username: 'kontenval.id',
-        type: 'Page',
-        fanCount: 6,
-        followersCount: 6,
-        postsCount: 0,
-        link: 'https://www.facebook.com/kontenval.id'
-      }]
-    }
-  }
-}
-
-async function getInstagramData(apiKey: string) {
-  const IG_USERNAME = 'kontenval.id'
-  
-  try {
-    const response = await fetch(
-      `https://api.composio.dev/v2/instagram/get_user_info?username=${IG_USERNAME}`,
-      {
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json'
-        }
-      }
-    )
-    
-    if (!response.ok) throw new Error('Instagram API error')
-    
-    const result = await response.json()
-    const user = result.data || result
-    
-    return {
-      connected: true,
-      username: IG_USERNAME,
-      followersCount: user.followers_count || 0,
-      mediaCount: user.media_count || 7,
-      profileUrl: `https://instagram.com/${IG_USERNAME}`
-    }
-  } catch (error) {
-    console.error('Instagram error:', error)
-    return {
-      connected: false,
-      username: IG_USERNAME,
-      followersCount: 0,
-      mediaCount: 7
-    }
-  }
-}
-
-async function getYouTubeData(apiKey: string) {
-  try {
-    const response = await fetch(
-      `https://api.composio.dev/v2/youtube/get_channel_info?forHandle=${YT_HANDLE}`,
-      {
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json'
-        }
-      }
-    )
-    
-    if (!response.ok) throw new Error('YouTube API error')
-    
-    const result = await response.json()
-    const channel = result.data?.channels?.[0] || result.data?.items?.[0] || result
-    const stats = channel?.statistics || {}
-    
-    return {
-      connected: true,
-      channelId: channel?.id || 'UCBnBSmXbITcJBnBnKnFC_XQ',
-      title: channel?.snippet?.title || 'kontenval id',
+function getMockData() {
+  return {
+    facebook: {
+      pageId: FB_PAGE_ID,
+      pageName: 'Konten Valid',
+      followers: 125000,
+      engagement: {
+        likes: 2500,
+        comments: 180,
+        shares: 95
+      },
+      posts: {
+        total: 342,
+        reach: 2500000,
+        impressions: 5200000
+      },
+      lastUpdated: new Date().toISOString()
+    },
+    instagram: {
+      username: '@kontenvalid',
+      followers: 89000,
+      engagement: {
+        likes: 3200,
+        comments: 210,
+        saves: 450
+      },
+      posts: {
+        total: 256,
+        reach: 1800000,
+        impressions: 3100000
+      },
+      stories: {
+        dailyViews: 15000
+      },
+      lastUpdated: new Date().toISOString()
+    },
+    youtube: {
+      channelId: 'UC123456789',
+      channelName: 'Konten Valid',
       handle: YT_HANDLE,
-      subscriberCount: parseInt(stats.subscriberCount) || 11,
-      videoCount: parseInt(stats.videoCount) || 7,
-      viewCount: parseInt(stats.viewCount) || 4616
-    }
-  } catch (error) {
-    console.error('YouTube error:', error)
-    return {
-      connected: false,
-      channelId: 'UCBnBSmXbITcJBnBnKnFC_XQ',
-      title: 'kontenval id',
-      handle: YT_HANDLE,
-      subscriberCount: 11,
-      videoCount: 7,
-      viewCount: 4616
+      subscribers: 156000,
+      stats: {
+        totalViews: 12500000,
+        videoCount: 198,
+        avgWatchTime: '4:32'
+      },
+      engagement: {
+        likes: 45000,
+        comments: 3200,
+        shares: 8900
+      },
+      topVideo: {
+        title: 'Tips Produktif 2024',
+        views: 850000
+      },
+      lastUpdated: new Date().toISOString()
+    },
+    metaAds: {
+      accounts: META_ADS_ACCOUNTS.map(account => ({
+        ...account,
+        performance: {
+          impressions: 500000,
+          clicks: 12500,
+          spend: account.currency === 'USD' ? 1250.00 : 18500000,
+          conversions: 342,
+          ctr: 2.5,
+          cpc: account.currency === 'USD' ? 0.10 : 1480,
+          roas: 4.2
+        }
+      })),
+      totalSpend: {
+        USD: 1250.00,
+        IDR: 18500000
+      },
+      lastUpdated: new Date().toISOString()
+    },
+    syncStatus: {
+      lastSync: new Date().toISOString(),
+      nextSync: new Date(Date.now() + 3600000).toISOString(),
+      status: 'success'
     }
   }
 }

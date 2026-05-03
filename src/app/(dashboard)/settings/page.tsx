@@ -25,10 +25,10 @@ export default function SettingsPage() {
   const [mcpUrl, setMcpUrl] = useState<string | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'connecting' | 'connected' | 'error'>('idle');
 
-  // Settings state
-  const [apiKeySet, setApiKeySet] = useState(false);
-  const [showMcpUrl, setShowMcpUrl] = useState(false);
-  const [composioConnected, setComposioConnected] = useState(false);
+  // Composio API Key state
+  const [consumerApiKey, setConsumerApiKey] = useState("")
+  const [consumerApiKeySet, setConsumerApiKeySet] = useState(false)
+  const [showApiKey, setShowApiKey] = useState(false)
 
   const [profile, setProfile] = useState({
     name: session?.user?.name || "",
@@ -49,63 +49,82 @@ export default function SettingsPage() {
   // Check if admin
   const isAdmin = session?.user?.email === "kontenval.id@gmail.com";
 
-  // Open Composio MCP connection URL for authentication
-  const connectComposio = async () => {
+  // Fetch Consumer API Key status from server
+  const fetchConsumerApiKeyStatus = async () => {
     try {
-      setConnecting(true);
+      const res = await fetch('/api/composio/consumer-key');
+      if (res.ok) {
+        const data = await res.json();
+        setConsumerApiKeySet(data.hasKey || false);
+      }
+    } catch (err) {
+      console.error('Consumer API key status error:', err);
+    }
+  };
+
+  // Save Consumer API Key
+  const saveConsumerApiKey = async () => {
+    if (!consumerApiKey.trim()) {
+      setError("Please enter your Consumer API Key");
+      return;
+    }
+
+    try {
+      setSaving(true);
       setError("");
       
-      // Get auth URL from server
-      const res = await fetch('/api/composio/auth-url');
+      const res = await fetch('/api/composio/consumer-key', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ consumerApiKey: consumerApiKey.trim() })
+      });
+
       if (res.ok) {
-        const data = await res.json();
-        if (data.authUrl) {
-          // Open the auth URL - Composio will redirect back after auth
-          window.location.href = data.authUrl;
-        } else {
-          setError('Failed to get auth URL');
-          setConnecting(false);
-        }
+        setConsumerApiKeySet(true);
+        setSaved(true);
+        setTimeout(() => setSaved(false), 3000);
+        
+        // Also update sync settings
+        await handleSave();
       } else {
-        setError('Failed to connect to Composio');
-        setConnecting(false);
-      }
-    } catch (err) {
-      setError('Connection error');
-      setConnecting(false);
-    }
-  };
-
-  // Fetch MCP connection status from server
-  const fetchMCPStatus = async () => {
-    try {
-      const res = await fetch('/api/composio/mcp-status');
-      if (res.ok) {
         const data = await res.json();
-        if (data.connected) {
-          setComposioConnected(true);
-          setMcpUrl(data.mcpUrl);
-          setConnectionStatus('connected');
-        } else {
-          setComposioConnected(false);
-          setConnectionStatus('idle');
-        }
+        setError(data.error || 'Failed to save API key');
       }
     } catch (err) {
-      console.error('MCP status error:', err);
+      setError('Failed to save API key');
+    } finally {
+      setSaving(false);
     }
   };
 
-  // Check MCP connection status on mount
+  // Remove Consumer API Key
+  const removeConsumerApiKey = async () => {
+    try {
+      setSaving(true);
+      
+      const res = await fetch('/api/composio/consumer-key', {
+        method: 'DELETE'
+      });
+
+      if (res.ok) {
+        setConsumerApiKeySet(false);
+        setConsumerApiKey("");
+        setSaved(true);
+        setTimeout(() => setSaved(false), 3000);
+      }
+    } catch (err) {
+      setError('Failed to remove API key');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Check API key status on mount
   useEffect(() => {
     if (session?.user) {
-      fetchMCPStatus();
+      fetchConsumerApiKeyStatus();
     }
   }, [session]);
-
-  const checkMCPConnection = async () => {
-    await fetchMCPStatus();
-  };
 
   // Fetch current settings on mount
   useEffect(() => {
@@ -115,8 +134,7 @@ export default function SettingsPage() {
         if (res.ok) {
           const data = await res.json();
           if (data.settings) {
-            // Composio API key is now handled server-side via environment variable
-            setApiKeySet(!!data.settings.composioApiKey || connectionStatus === 'connected');
+            setConsumerApiKeySet(!!data.settings.composioApiKey);
             setSyncSettings({
               autoSync: data.settings.autoSync ?? true,
               syncInterval: data.settings.syncInterval ?? 60,
@@ -128,7 +146,7 @@ export default function SettingsPage() {
       }
     };
     fetchSettings();
-  }, [connectionStatus]);
+  }, [session]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -192,97 +210,89 @@ export default function SettingsPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                Connect your Composio account to enable social media monitoring and Meta Ads integration.
-                Click the button below to authenticate with Composio.
+                Enter your Composio Consumer API Key to enable social media monitoring and Meta Ads integration.
+                You can find this key in your Composio dashboard under Settings → API Keys.
               </p>
               
-              {connectionStatus === 'connecting' && (
-                <div className="flex items-center gap-2 text-blue-600 text-sm">
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  <span>Waiting for authentication...</span>
+              {!consumerApiKeySet ? (
+                // Input mode - user enters API key
+                <div className="space-y-3">
+                  <div className="relative">
+                    <Input
+                      type={showApiKey ? "text" : "password"}
+                      placeholder="Enter your x-consumer-api-key"
+                      value={consumerApiKey}
+                      onChange={(e) => setConsumerApiKey(e.target.value)}
+                      className="pr-10 font-mono text-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowApiKey(!showApiKey)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {showApiKey ? (
+                        <EyeOff className="w-4 h-4" />
+                      ) : (
+                        <Eye className="w-4 h-4" />
+                      )}
+                    </button>
+                  </div>
+                  <Button 
+                    onClick={saveConsumerApiKey}
+                    disabled={saving || !consumerApiKey.trim()}
+                    className="w-full"
+                  >
+                    <Key className="w-4 h-4 mr-2" />
+                    {saving ? 'Saving...' : 'Save API Key'}
+                  </Button>
                 </div>
-              )}
-              
-              <Button 
-                onClick={connectComposio}
-                disabled={connecting}
-                className="w-full"
-              >
-                <Link2 className="w-4 h-4 mr-2" />
-                Connect to Composio
-              </Button>
-
-              {connectionStatus === 'connected' && (
+              ) : (
+                // Connected mode - show status and option to change
                 <div className="space-y-3">
                   <div className="flex items-center gap-2 text-green-600 text-sm">
                     <CheckCircle className="w-4 h-4" />
-                    <span>Connected to Composio MCP</span>
-                    <Button 
-                      variant="ghost" 
-                      size="sm"
-                      onClick={checkMCPConnection}
-                      className="ml-auto"
-                    >
-                      <RefreshCw className="w-3 h-3" />
-                    </Button>
+                    <span>Consumer API Key configured</span>
                   </div>
                   
-                  {mcpUrl && (
-                    <div className="space-y-2">
-                      <p className="text-xs text-muted-foreground">MCP Server URL:</p>
-                      <div className="relative">
-                        <Input
-                          type={showMcpUrl ? "text" : "password"}
-                          value={mcpUrl}
-                          readOnly
-                          className="pr-10 text-xs font-mono"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowMcpUrl(!showMcpUrl)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                        >
-                          {showMcpUrl ? (
-                            <EyeOff className="w-4 h-4" />
-                          ) : (
-                            <Eye className="w-4 h-4" />
-                          )}
-                        </button>
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        Use this URL to connect AI agents like Claude, Cursor, or Codex to your Composio MCP server.
-                      </p>
-                      <a
-                        href="https://docs.composio.dev/docs/single-toolkit-mcp"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
-                      >
-                        <ExternalLink className="w-3 h-3" />
-                        View integration guide
-                      </a>
+                  <div className="p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">Status:</span>
+                      <Badge variant="success" className="text-xs">Connected</Badge>
                     </div>
-                  )}
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">Sync:</span>
+                      <span className="text-xs">Hourly (via cron)</span>
+                    </div>
+                  </div>
+                  
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => setConsumerApiKeySet(false)}
+                      className="flex-1"
+                    >
+                      Update Key
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={removeConsumerApiKey}
+                      className="text-red-500 hover:text-red-600"
+                    >
+                      Remove
+                    </Button>
+                  </div>
                 </div>
               )}
 
-              {connectionStatus === 'error' && (
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2 text-red-600 text-sm">
-                    <AlertCircle className="w-4 h-4" />
-                    <span>{error || 'Connection failed'}</span>
-                  </div>
-                  <Button 
-                    onClick={connectComposio}
-                    disabled={connecting}
-                    variant="outline"
-                    className="w-full"
-                  >
-                    <RefreshCw className="w-4 h-4 mr-2" />
-                    Retry Connection
-                  </Button>
+              {/* Sync Info */}
+              <div className="pt-3 border-t">
+                <div className="flex items-start gap-2 text-xs text-muted-foreground">
+                  <Clock className="w-3 h-3 mt-0.5 flex-shrink-0" />
+                  <span>Data syncs every hour via cron job. For real-time updates, you'll need Composio Triggers configured.</span>
                 </div>
-              )}
+              </div>
 
               {/* Connected Platforms Status */}
               <div className="pt-4 border-t space-y-3">
