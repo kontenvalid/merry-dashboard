@@ -13,9 +13,13 @@ export const authOptions: NextAuthOptions = {
   ],
   callbacks: {
     async session({ session, user }) {
-      // Add role to session
-      if (session.user) {
-        (session.user as { role?: string }).role = user.role;
+      // Add role to session - user from adapter has role from Prisma
+      if (session.user && user) {
+        // Cast user to any to access role from Prisma
+        const prismaUser = user as { role?: string };
+        if (prismaUser.role) {
+          (session.user as { role?: string }).role = prismaUser.role;
+        }
       }
       return session;
     },
