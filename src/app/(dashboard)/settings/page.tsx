@@ -50,10 +50,30 @@ export default function SettingsPage() {
   const isAdmin = session?.user?.email === "kontenval.id@gmail.com";
 
   // Open Composio MCP connection URL for authentication
-  const connectComposio = () => {
-    // Redirect to Composio for authentication
-    window.open('https://connect.composio.dev/mcp', '_blank');
-    setConnectionStatus('connecting');
+  const connectComposio = async () => {
+    try {
+      setConnecting(true);
+      setError("");
+      
+      // Get auth URL from server
+      const res = await fetch('/api/composio/auth-url');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.authUrl) {
+          // Open the auth URL - Composio will redirect back after auth
+          window.location.href = data.authUrl;
+        } else {
+          setError('Failed to get auth URL');
+          setConnecting(false);
+        }
+      } else {
+        setError('Failed to connect to Composio');
+        setConnecting(false);
+      }
+    } catch (err) {
+      setError('Connection error');
+      setConnecting(false);
+    }
   };
 
   // Fetch MCP connection status from server
