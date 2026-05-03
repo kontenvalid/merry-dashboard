@@ -28,6 +28,7 @@ export default function SettingsPage() {
   // Settings state
   const [apiKeySet, setApiKeySet] = useState(false);
   const [showMcpUrl, setShowMcpUrl] = useState(false);
+  const [composioConnected, setComposioConnected] = useState(false);
 
   const [profile, setProfile] = useState({
     name: session?.user?.name || "",
@@ -48,57 +49,42 @@ export default function SettingsPage() {
   // Check if admin
   const isAdmin = session?.user?.email === "kontenval.id@gmail.com";
 
-  // Connect to Composio MCP
-  const connectComposio = async () => {
-    setConnecting(true);
-    setError("");
+  // Open Composio MCP connection URL for authentication
+  const connectComposio = () => {
+    // Redirect to Composio for authentication
+    window.open('https://connect.composio.dev/mcp', '_blank');
+    setConnectionStatus('connecting');
+  };
+
+  // Fetch MCP connection status from server
+  const fetchMCPStatus = async () => {
     try {
-      const res = await fetch('/api/composio/overview');
+      const res = await fetch('/api/composio/mcp-status');
       if (res.ok) {
         const data = await res.json();
-        if (data.mcpUrl) {
+        if (data.connected) {
+          setComposioConnected(true);
           setMcpUrl(data.mcpUrl);
           setConnectionStatus('connected');
-        } else if (data.connected) {
-          setConnectionStatus('connected');
         } else {
-          setConnectionStatus('error');
-          setError(data.message || 'Failed to connect');
+          setComposioConnected(false);
+          setConnectionStatus('idle');
         }
-      } else {
-        setConnectionStatus('error');
-        setError('Failed to connect to Composio');
       }
     } catch (err) {
-      setConnectionStatus('error');
-      setError('Connection error');
-    } finally {
-      setConnecting(false);
+      console.error('MCP status error:', err);
     }
   };
 
-  // Check MCP connection status
+  // Check MCP connection status on mount
   useEffect(() => {
     if (session?.user) {
-      checkMCPConnection();
+      fetchMCPStatus();
     }
   }, [session]);
 
   const checkMCPConnection = async () => {
-    try {
-      const res = await fetch('/api/composio/overview');
-      if (res.ok) {
-        const data = await res.json();
-        if (data.mcpUrl) {
-          setMcpUrl(data.mcpUrl);
-          setConnectionStatus('connected');
-        } else if (data.connected) {
-          setConnectionStatus('connected');
-        }
-      }
-    } catch (err) {
-      console.error('MCP check error:', err);
-    }
+    await fetchMCPStatus();
   };
 
   // Fetch current settings on mount
@@ -186,28 +172,25 @@ export default function SettingsPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                Enter your Composio API key to connect your social media accounts and Meta Ads.
-                Get your API key from{" "}
-                <a 
-                  href="https://dashboard.composio.dev" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="text-blue-600 hover:underline"
-                >
-                  dashboard.composio.dev
-                </a>
+                Connect your Composio account to enable social media monitoring and Meta Ads integration.
+                Click the button below to authenticate with Composio.
               </p>
               
-              {connectionStatus === 'idle' && (
-                <Button 
-                  onClick={connectComposio}
-                  disabled={connecting}
-                  className="w-full"
-                >
-                  <Link2 className="w-4 h-4 mr-2" />
-                  {connecting ? 'Connecting...' : 'Connect to Composio MCP'}
-                </Button>
+              {connectionStatus === 'connecting' && (
+                <div className="flex items-center gap-2 text-blue-600 text-sm">
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <span>Waiting for authentication...</span>
+                </div>
               )}
+              
+              <Button 
+                onClick={connectComposio}
+                disabled={connecting}
+                className="w-full"
+              >
+                <Link2 className="w-4 h-4 mr-2" />
+                Connect to Composio
+              </Button>
 
               {connectionStatus === 'connected' && (
                 <div className="space-y-3">

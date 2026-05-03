@@ -21,30 +21,21 @@ export async function GET() {
   }
 
   try {
-    const composioApiKey = process.env.COMPOSIO_API_KEY
+    const apiKey = process.env.COMPOSIO_API_KEY
     
     // Check if API key is configured
-    if (!composioApiKey) {
+    if (!apiKey) {
       return NextResponse.json({
         connected: false,
-        message: 'Composio API key not configured',
-        mcpUrl: null,
-        platforms: {
-          facebook: { connected: false },
-          instagram: { connected: false },
-          youtube: { connected: false },
-          metaAds: { connected: false, accounts: META_ADS_ACCOUNTS }
-        }
+        message: 'Composio not connected. Click "Connect to Composio" to authenticate.',
+        authUrl: 'https://connect.composio.dev/mcp'
       })
     }
 
-    // Generate MCP server URL using Composio API
-    const mcpConfig = await createMCPConnection(composioApiKey, session.user.email || 'anonymous')
-    
     // Fetch real-time data from Composio API
-    const fbData = await getFacebookData(composioApiKey)
-    const igData = await getInstagramData(composioApiKey)
-    const ytData = await getYouTubeData(composioApiKey)
+    const fbData = await getFacebookData(apiKey)
+    const igData = await getInstagramData(apiKey)
+    const ytData = await getYouTubeData(apiKey)
 
     // Calculate summary
     const totalFollowers = 
@@ -64,8 +55,6 @@ export async function GET() {
 
     return NextResponse.json({
       connected: true,
-      mcpUrl: mcpConfig.url,
-      mcpConfigId: mcpConfig.id,
       platforms: {
         facebook: fbData,
         instagram: igData,
@@ -87,68 +76,14 @@ export async function GET() {
     console.error('Overview API error:', error)
     return NextResponse.json({ 
       connected: false,
-      error: 'Failed to connect to Composio',
-      mcpUrl: null,
-      platforms: {
-        facebook: { connected: false },
-        instagram: { connected: false },
-        youtube: { connected: false },
-        metaAds: { connected: false, accounts: META_ADS_ACCOUNTS }
-      }
+      error: 'Failed to fetch data from Composio',
+      authUrl: 'https://connect.composio.dev/mcp'
     }, { status: 500 })
-  }
-}
-
-async function createMCPConnection(apiKey: string, userId: string) {
-  try {
-    // Create MCP config with required toolkits
-    const response = await fetch('https://api.composio.dev/v3/mcp/create', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        name: `merry-dashboard-${userId.slice(0, 8)}`,
-        toolkits: ['facebook', 'instagram', 'youtube', 'meta_ads'],
-        allowedTools: [
-          'FACEBOOK_GET_PAGE_INFO',
-          'FACEBOOK_GET_PAGE_INSIGHTS',
-          'INSTAGRAM_GET_USER_INFO',
-          'INSTAGRAM_GET_USER_MEDIA',
-          'YOUTUBE_GET_CHANNEL_INFO',
-          'YOUTUBE_GET_VIDEO_STATS',
-          'METAADS_GET_AD_ACCOUNTS',
-          'METAADS_GET_AD_CAMPAIGNS',
-          'METAADS_GET_AD_INSIGHTS'
-        ]
-      })
-    })
-    
-    if (!response.ok) {
-      throw new Error('Failed to create MCP config')
-    }
-    
-    const config = await response.json()
-    
-    // Generate user-specific MCP URL
-    const mcpUrl = `https://backend.composio.dev/v3/mcp/${config.id}?user_id=${encodeURIComponent(userId)}`
-    
-    return {
-      id: config.id,
-      url: mcpUrl
-    }
-  } catch (error) {
-    console.error('MCP connection error:', error)
-    throw error
   }
 }
 
 async function getFacebookData(apiKey: string) {
   try {
-    const since = getSinceDate(7)
-    const until = getUntilDate()
-    
     const response = await fetch(
       `https://api.composio.dev/v2/facebook/get_page_info?page_id=${FB_PAGE_ID}`,
       {
@@ -159,9 +94,7 @@ async function getFacebookData(apiKey: string) {
       }
     )
     
-    if (!response.ok) {
-      throw new Error('Facebook API error')
-    }
+    if (!response.ok) throw new Error('Facebook API error')
     
     const result = await response.json()
     const page = result.data || result
@@ -211,9 +144,7 @@ async function getInstagramData(apiKey: string) {
       }
     )
     
-    if (!response.ok) {
-      throw new Error('Instagram API error')
-    }
+    if (!response.ok) throw new Error('Instagram API error')
     
     const result = await response.json()
     const user = result.data || result
@@ -248,9 +179,7 @@ async function getYouTubeData(apiKey: string) {
       }
     )
     
-    if (!response.ok) {
-      throw new Error('YouTube API error')
-    }
+    if (!response.ok) throw new Error('YouTube API error')
     
     const result = await response.json()
     const channel = result.data?.channels?.[0] || result.data?.items?.[0] || result
@@ -277,14 +206,4 @@ async function getYouTubeData(apiKey: string) {
       viewCount: 4616
     }
   }
-}
-
-function getSinceDate(days: number): string {
-  const date = new Date()
-  date.setDate(date.getDate() - days)
-  return date.toISOString().split('T')[0]
-}
-
-function getUntilDate(): string {
-  return new Date().toISOString().split('T')[0]
 }
