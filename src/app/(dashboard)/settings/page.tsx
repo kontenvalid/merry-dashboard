@@ -23,12 +23,14 @@ export default function SettingsPage() {
   const [error, setError] = useState("");
   const [connecting, setConnecting] = useState(false);
   const [mcpUrl, setMcpUrl] = useState<string | null>(null);
-  const [connectionStatus, setConnectionStatus] = useState<'idle' | 'connecting' | 'connected' | 'error'>('idle');
+  const [mcpHeaders, setMcpHeaders] = useState<Record<string, string>>({});
+  const [generatingMcp, setGeneratingMcp] = useState(false);
 
   // Composio API Key state
   const [consumerApiKey, setConsumerApiKey] = useState("")
   const [consumerApiKeySet, setConsumerApiKeySet] = useState(false)
   const [showApiKey, setShowApiKey] = useState(false)
+  const [showMcpUrl, setShowMcpUrl] = useState(false)
 
   const [profile, setProfile] = useState({
     name: session?.user?.name || "",
@@ -56,9 +58,30 @@ export default function SettingsPage() {
       if (res.ok) {
         const data = await res.json();
         setConsumerApiKeySet(data.hasKey || false);
+        
+        // If key exists, also try to get MCP URL
+        if (data.hasKey) {
+          fetchMcpUrl();
+        }
       }
     } catch (err) {
       console.error('Consumer API key status error:', err);
+    }
+  };
+
+  // Fetch MCP URL if API key exists
+  const fetchMcpUrl = async () => {
+    try {
+      const res = await fetch('/api/composio/mcp-url');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.mcpUrl) {
+          setMcpUrl(data.mcpUrl);
+          setMcpHeaders(data.mcpHeaders || {});
+        }
+      }
+    } catch (err) {
+      console.error('MCP URL fetch error:', err);
     }
   };
 
@@ -82,7 +105,9 @@ export default function SettingsPage() {
       if (res.ok) {
         setConsumerApiKeySet(true);
         setSaved(true);
-        setTimeout(() => setSaved(false), 3000);
+        
+        // Generate MCP URL after saving API key
+        await generateMcpUrl();
         
         // Also update sync settings
         await handleSave();
@@ -109,6 +134,8 @@ export default function SettingsPage() {
       if (res.ok) {
         setConsumerApiKeySet(false);
         setConsumerApiKey("");
+        setMcpUrl(null);
+        setMcpHeaders({});
         setSaved(true);
         setTimeout(() => setSaved(false), 3000);
       }
@@ -116,6 +143,34 @@ export default function SettingsPage() {
       setError('Failed to remove API key');
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Generate MCP URL after API key is saved
+  const generateMcpUrl = async () => {
+    try {
+      setGeneratingMcp(true);
+      setError("");
+      
+      const res = await fetch('/api/composio/mcp-url');
+      const data = await res.json();
+      
+      if (data.success && data.mcpUrl) {
+        setMcpUrl(data.mcpUrl);
+        setMcpHeaders(data.mcpHeaders || {});
+        setSaved(true);
+      } else if (data.fallback) {
+        // Manual setup required
+        setError('Please setup MCP server manually at platform.composio.dev');
+        setSaved(true);
+      } else {
+        setError(data.error || 'Failed to generate MCP URL');
+      }
+    } catch (err) {
+      setError('Failed to generate MCP URL');
+    } finally {
+      setGeneratingMcp(false);
+      setTimeout(() => setSaved(false), 3000);
     }
   };
 
@@ -247,8 +302,8 @@ export default function SettingsPage() {
                   </Button>
                 </div>
               ) : (
-                // Connected mode - show status and option to change
-                <div className="space-y-3">
+                // Connected mode - show status and MCP URL
+                <div className="space-y-4">
                   <div className="flex items-center gap-2 text-green-600 text-sm">
                     <CheckCircle className="w-4 h-4" />
                     <span>Consumer API Key configured</span>
@@ -265,7 +320,79 @@ export default function SettingsPage() {
                     </div>
                   </div>
                   
-                  <div className="flex gap-2">
+                  {/* MCP URL Section */}
+                  {mcpUrl ? (
+                    <div className="space-y-3">
+                      <div className="border-t pt-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-sm font-medium flex items-center gap-2">
+                            <Link2 className="w-4 h-4" />
+                            MCP Server URL
+                          </p>
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={generateMcpUrl}
+                            disabled={generatingMcp}
+                          >
+                            <RefreshCw className={`w-3 h-3 ${generatingMcp ? 'animate-spin' : ''}`} />
+                          </Button>
+                        </div>
+                        <div className="relative">
+                          <Input
+                            type={showMcpUrl ? "text" : "password"}
+                            value={mcpUrl}
+                            readOnly
+                            className="pr-10 text-xs font-mono"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowMcpUrl(!showMcpUrl)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                          >
+                            {showMcpUrl ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </div>
+                        
+                        {/* Headers for MCP client */}
+                        {mcpHeaders && Object.keys(mcpHeaders).length > 0 && (
+                          <div className="mt-2">
+                            <p className="text-xs text-muted-foreground mb-1">Headers (required for connection):</p>
+                            <div className="bg-muted/50 rounded p-2 text-xs font-mono space-y-1">
+                              {Object.entries(mcpHeaders).map(([key, value]) => (
+                                <div key={key}>
+                                  <span className="text-muted-foreground">{key}:</span> <span className="text-foreground">{value}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 space-y-2">
+                        <p className="text-xs font-medium text-blue-700 dark:text-blue-300">How to connect:</p>
+                        <ol className="text-xs text-blue-600 dark:text-blue-400 space-y-1 list-decimal list-inside">
+                          <li>Copy the MCP URL above</li>
+                          <li>Add header: <code className="bg-blue-100 dark:bg-blue-800 px-1 rounded">x-api-key: YOUR_CONSUMER_KEY</code></li>
+                          <li>Use in Claude Desktop, Cursor, or Codex</li>
+                        </ol>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="border-t pt-3">
+                      <Button 
+                        onClick={generateMcpUrl}
+                        disabled={generatingMcp}
+                        variant="outline"
+                        className="w-full"
+                      >
+                        <Link2 className="w-4 h-4 mr-2" />
+                        {generatingMcp ? 'Generating MCP URL...' : 'Generate MCP URL'}
+                      </Button>
+                    </div>
+                  )}
+                  
+                  <div className="flex gap-2 pt-2">
                     <Button 
                       variant="outline" 
                       size="sm" 
