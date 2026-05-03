@@ -22,14 +22,15 @@ export default function SettingsPage() {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
   const [connecting, setConnecting] = useState(false);
-  const [mcpUrl, setMcpUrl] = useState<string | null>(null);
-  const [mcpHeaders, setMcpHeaders] = useState<Record<string, string>>({});
   const [generatingMcp, setGeneratingMcp] = useState(false);
 
   // Composio API Key state
   const [consumerApiKey, setConsumerApiKey] = useState("")
   const [consumerApiKeySet, setConsumerApiKeySet] = useState(false)
   const [showApiKey, setShowApiKey] = useState(false)
+  const [mcpUrl, setMcpUrl] = useState<string | null>(null)
+  const [mcpHeaders, setMcpHeaders] = useState<Record<string, string>>({})
+  const [connectionResult, setConnectionResult] = useState<any>(null)
   const [showMcpUrl, setShowMcpUrl] = useState(false)
 
   const [profile, setProfile] = useState({
@@ -143,6 +144,57 @@ export default function SettingsPage() {
       setError('Failed to remove API key');
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Connect to Composio with consumer API key as header
+  const connectToComposio = async () => {
+    if (!consumerApiKey.trim()) {
+      setError("Please enter your x-consumer-api-key first")
+      return
+    }
+
+    try {
+      setConnecting(true)
+      setError("")
+      setConnectionResult(null)
+
+      // Call our API with the consumer API key
+      // The API will use this to connect to Composio MCP
+      const res = await fetch('/api/composio/connect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ consumerApiKey: consumerApiKey.trim() })
+      })
+
+      const data = await res.json()
+
+      if (data.success) {
+        setConnectionResult(data)
+        
+        // If we got an MCP URL, save it
+        if (data.mcpUrl) {
+          setMcpUrl(data.mcpUrl)
+          setMcpHeaders(data.headers || {})
+        }
+        
+        // If there's a redirect URL, open it
+        if (data.redirectUrl) {
+          window.open(data.redirectUrl, '_blank')
+        }
+        
+        setSaved(true)
+        setTimeout(() => setSaved(false), 5000)
+      } else {
+        setError(data.message || data.error || 'Failed to connect')
+        if (data.instructions) {
+          setError(`${data.message}. ${data.instructions.step1}`)
+        }
+      }
+    } catch (err) {
+      setError('Connection error. Please try again.')
+    } finally {
+      setConnecting(false)
     }
   };
 
@@ -293,16 +345,19 @@ export default function SettingsPage() {
                     </button>
                   </div>
                   <Button 
-                    onClick={saveConsumerApiKey}
-                    disabled={saving || !consumerApiKey.trim()}
+                    onClick={connectToComposio}
+                    disabled={connecting || !consumerApiKey.trim()}
                     className="w-full"
                   >
-                    <Key className="w-4 h-4 mr-2" />
-                    {saving ? 'Saving...' : 'Save API Key'}
+                    <Link2 className="w-4 h-4 mr-2" />
+                    {connecting ? 'Connecting...' : 'Connect to Composio'}
                   </Button>
+                  <p className="text-xs text-muted-foreground text-center">
+                    Your API key will be sent as x-consumer-api-key header
+                  </p>
                 </div>
               ) : (
-                // Connected mode - show status and MCP URL
+                // Connected mode - show status, MCP URL and headers
                 <div className="space-y-4">
                   <div className="flex items-center gap-2 text-green-600 text-sm">
                     <CheckCircle className="w-4 h-4" />
@@ -318,76 +373,68 @@ export default function SettingsPage() {
                       <span className="text-xs text-muted-foreground">Sync:</span>
                       <span className="text-xs">Hourly (via cron)</span>
                     </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">Header:</span>
+                      <span className="text-xs font-mono">x-consumer-api-key: [set]</span>
+                    </div>
                   </div>
                   
-                  {/* MCP URL Section */}
-                  {mcpUrl ? (
-                    <div className="space-y-3">
-                      <div className="border-t pt-3">
-                        <div className="flex items-center justify-between mb-2">
-                          <p className="text-sm font-medium flex items-center gap-2">
-                            <Link2 className="w-4 h-4" />
-                            MCP Server URL
-                          </p>
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={generateMcpUrl}
-                            disabled={generatingMcp}
-                          >
-                            <RefreshCw className={`w-3 h-3 ${generatingMcp ? 'animate-spin' : ''}`} />
-                          </Button>
-                        </div>
-                        <div className="relative">
-                          <Input
-                            type={showMcpUrl ? "text" : "password"}
-                            value={mcpUrl}
-                            readOnly
-                            className="pr-10 text-xs font-mono"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setShowMcpUrl(!showMcpUrl)}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                          >
-                            {showMcpUrl ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                          </button>
-                        </div>
-                        
-                        {/* Headers for MCP client */}
-                        {mcpHeaders && Object.keys(mcpHeaders).length > 0 && (
-                          <div className="mt-2">
-                            <p className="text-xs text-muted-foreground mb-1">Headers (required for connection):</p>
-                            <div className="bg-muted/50 rounded p-2 text-xs font-mono space-y-1">
-                              {Object.entries(mcpHeaders).map(([key, value]) => (
-                                <div key={key}>
-                                  <span className="text-muted-foreground">{key}:</span> <span className="text-foreground">{value}</span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
+                  {/* Connection Result / MCP URL Section */}
+                  {connectionResult && connectionResult.mcpUrl ? (
+                    <div className="border-t pt-3 space-y-3">
+                      <p className="text-sm font-medium flex items-center gap-2">
+                        <Link2 className="w-4 h-4" />
+                        Your MCP URL (use with header below)
+                      </p>
+                      <div className="relative">
+                        <Input
+                          type={showMcpUrl ? "text" : "password"}
+                          value={connectionResult.mcpUrl}
+                          readOnly
+                          className="pr-10 text-xs font-mono"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowMcpUrl(!showMcpUrl)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        >
+                          {showMcpUrl ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
                       </div>
                       
-                      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 space-y-2">
-                        <p className="text-xs font-medium text-blue-700 dark:text-blue-300">How to connect:</p>
-                        <ol className="text-xs text-blue-600 dark:text-blue-400 space-y-1 list-decimal list-inside">
-                          <li>Copy the MCP URL above</li>
-                          <li>Add header: <code className="bg-blue-100 dark:bg-blue-800 px-1 rounded">x-api-key: YOUR_CONSUMER_KEY</code></li>
-                          <li>Use in Claude Desktop, Cursor, or Codex</li>
-                        </ol>
+                      {/* Headers for MCP client - CRITICAL */}
+                      <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3 space-y-2">
+                        <p className="text-xs font-medium text-yellow-700 dark:text-yellow-300">
+                          ⚠️ Required Header for MCP Connection:
+                        </p>
+                        <div className="bg-muted/50 rounded p-2 text-xs font-mono">
+                          <div><span className="text-muted-foreground">x-consumer-api-key:</span> <span className="text-foreground font-bold">{consumerApiKey.substring(0, 10)}...{consumerApiKey.substring(consumerApiKey.length - 4)}</span></div>
+                        </div>
+                        <p className="text-xs text-yellow-600 dark:text-yellow-400">
+                          Include this header when connecting via Claude Desktop, Cursor, or Codex
+                        </p>
                       </div>
+                      
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={connectToComposio}
+                        disabled={connecting}
+                        className="w-full"
+                      >
+                        <RefreshCw className={`w-3 h-3 mr-2 ${connecting ? 'animate-spin' : ''}`} />
+                        Reconnect to Composio
+                      </Button>
                     </div>
                   ) : (
                     <div className="border-t pt-3">
                       <Button 
-                        onClick={generateMcpUrl}
-                        disabled={generatingMcp}
-                        variant="outline"
+                        onClick={connectToComposio}
+                        disabled={connecting}
                         className="w-full"
                       >
                         <Link2 className="w-4 h-4 mr-2" />
-                        {generatingMcp ? 'Generating MCP URL...' : 'Generate MCP URL'}
+                        {connecting ? 'Connecting to Composio...' : 'Get MCP URL'}
                       </Button>
                     </div>
                   )}

@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { getConsumerApiKey } from '@/lib/composio-store'
 
 export async function GET() {
   const session = await getServerSession(authOptions)
@@ -11,23 +10,27 @@ export async function GET() {
   }
 
   const userEmail = session.user.email
-  const apiKey = getConsumerApiKey(userEmail) || process.env.COMPOSIO_API_KEY
+  const apiKey = process.env.COMPOSIO_API_KEY
 
   if (!apiKey) {
     return NextResponse.json({ 
-      error: 'No API key configured',
-      hasKey: false 
+      error: 'No API key configured. Please add COMPOSIO_API_KEY to Vercel environment variables.',
+      hasKey: false,
+      instructions: [
+        '1. Go to Vercel Dashboard → merry-dashboard → Settings → Environment Variables',
+        '2. Add COMPOSIO_API_KEY with your Composio API key',
+        '3. Redeploy the project'
+      ]
     }, { status: 400 })
   }
 
   try {
     // Generate MCP URL using Composio SDK
-    // This creates a user-specific MCP server URL
     const { Composio } = await import('@composio/core')
     
     const composio = new Composio({ apiKey })
     
-    // Create MCP server config (or use existing)
+    // Create MCP server config
     const serverConfig = {
       name: 'merry-dashboard-social',
       toolkits: ['facebook', 'instagram', 'youtube', 'meta_ads'],
@@ -78,11 +81,11 @@ export async function GET() {
   } catch (error: any) {
     console.error('MCP URL generation error:', error)
     
-    // Fallback: return instructions for manual setup
+    // Return manual setup instructions
     return NextResponse.json({
       success: false,
       hasKey: true,
-      error: 'Failed to generate MCP URL automatically',
+      error: 'Failed to generate MCP URL: ' + error.message,
       fallback: true,
       manualInstructions: {
         step1: 'Go to https://platform.composio.dev/mcp-configs',
