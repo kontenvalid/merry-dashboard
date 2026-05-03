@@ -1,0 +1,513 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Avatar } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { 
+  User, Mail, Shield, Bell, Palette, 
+  Globe, Clock, Key, Save, CheckCircle,
+  Eye, EyeOff, AlertCircle, KeyRound
+} from "lucide-react";
+
+export default function SettingsPage() {
+  const { data: session } = useSession();
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState("");
+
+  // Settings state
+  const [composioApiKey, setComposioApiKey] = useState("");
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [apiKeySet, setApiKeySet] = useState(false);
+
+  const [profile, setProfile] = useState({
+    name: session?.user?.name || "",
+    email: session?.user?.email || "",
+  });
+
+  const [notifications, setNotifications] = useState({
+    email: true,
+    push: true,
+    weekly: false,
+  });
+
+  const [syncSettings, setSyncSettings] = useState({
+    autoSync: true,
+    syncInterval: 60,
+  });
+
+  // Check if admin
+  const isAdmin = session?.user?.email === "kontenval.id@gmail.com";
+
+  // Fetch current settings on mount
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const res = await fetch('/api/settings');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.settings) {
+            if (data.settings.composioApiKey !== '') {
+              setComposioApiKey(data.settings.composioApiKey);
+              setApiKeySet(true);
+            }
+            setSyncSettings({
+              autoSync: data.settings.autoSync ?? true,
+              syncInterval: data.settings.syncInterval ?? 60,
+            });
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch settings:", err);
+      }
+    };
+    fetchSettings();
+  }, []);
+
+  const handleSave = async () => {
+    setSaving(true);
+    setError("");
+    
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          composioApiKey: composioApiKey,
+          ...syncSettings,
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error('Failed to save settings');
+      }
+
+      setSaving(false);
+      setSaved(true);
+      setApiKeySet(composioApiKey.length > 0);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (err) {
+      setSaving(false);
+      setError("Failed to save settings. Please try again.");
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Settings</h1>
+          <p className="text-muted-foreground mt-1">
+            Manage your account and dashboard settings
+          </p>
+        </div>
+      </div>
+
+      {/* Error Alert */}
+      {error && (
+        <Card className="border-red-200 bg-red-50 dark:bg-red-900/20">
+          <CardContent className="flex items-center gap-2 py-3">
+            <AlertCircle className="w-5 h-5 text-red-500" />
+            <span className="text-red-600">{error}</span>
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left Column - Profile & Integrations */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* Composio API Key */}
+          <Card className="border-blue-200 dark:border-blue-800">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <KeyRound className="w-5 h-5 text-blue-600" />
+                Composio Integration
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Enter your Composio API key to connect your social media accounts and Meta Ads.
+                Get your API key from{" "}
+                <a 
+                  href="https://app.composio.com" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-blue-600 hover:underline"
+                >
+                  app.composio.com
+                </a>
+              </p>
+              
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Input
+                    type={showApiKey ? "text" : "password"}
+                    value={composioApiKey}
+                    onChange={(e) => setComposioApiKey(e.target.value)}
+                    placeholder={apiKeySet ? "••••••••••••••••" : "Enter your Composio API key"}
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowApiKey(!showApiKey)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
+                    {showApiKey ? (
+                      <EyeOff className="w-4 h-4" />
+                    ) : (
+                      <Eye className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
+                <Button variant="outline" asChild>
+                  <a 
+                    href="https://app.composio.com" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                  >
+                    Get API Key
+                  </a>
+                </Button>
+              </div>
+
+              {apiKeySet && (
+                <div className="flex items-center gap-2 text-green-600 text-sm">
+                  <CheckCircle className="w-4 h-4" />
+                  <span>API key configured</span>
+                </div>
+              )}
+
+              {/* Connected Platforms Status */}
+              <div className="pt-4 border-t space-y-3">
+                <p className="font-medium text-sm">Connected Platforms</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="flex items-center justify-between p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full bg-green-500" />
+                      <span className="text-sm">Facebook</span>
+                    </div>
+                    <Badge variant="success" className="text-xs">Active</Badge>
+                  </div>
+                  <div className="flex items-center justify-between p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full bg-green-500" />
+                      <span className="text-sm">Instagram</span>
+                    </div>
+                    <Badge variant="success" className="text-xs">Active</Badge>
+                  </div>
+                  <div className="flex items-center justify-between p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full bg-green-500" />
+                      <span className="text-sm">YouTube</span>
+                    </div>
+                    <Badge variant="success" className="text-xs">Active</Badge>
+                  </div>
+                  <div className="flex items-center justify-between p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full bg-green-500" />
+                      <span className="text-sm">Meta Ads</span>
+                    </div>
+                    <Badge variant="success" className="text-xs">Active</Badge>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Sync Settings */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <RefreshCwIcon className="w-5 h-5" />
+                Auto Sync Settings
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium">Automatic Sync</p>
+                  <p className="text-sm text-muted-foreground">
+                    Automatically sync data from all connected platforms
+                  </p>
+                </div>
+                <input 
+                  type="checkbox" 
+                  checked={syncSettings.autoSync}
+                  onChange={(e) => setSyncSettings({...syncSettings, autoSync: e.target.checked})}
+                  className="w-5 h-5"
+                />
+              </div>
+              {syncSettings.autoSync && (
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Sync Interval</label>
+                  <select 
+                    className="w-full p-2 rounded-lg border bg-background"
+                    value={syncSettings.syncInterval}
+                    onChange={(e) => setSyncSettings({...syncSettings, syncInterval: Number(e.target.value)})}
+                  >
+                    <option value={15}>Every 15 minutes</option>
+                    <option value={30}>Every 30 minutes</option>
+                    <option value={60}>Every hour</option>
+                    <option value={120}>Every 2 hours</option>
+                    <option value={360}>Every 6 hours</option>
+                  </select>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Profile */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <User className="w-5 h-5" />
+                Profile
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center gap-4 pb-4 border-b">
+                <Avatar 
+                  src={session?.user?.image || ""} 
+                  fallback={session?.user?.name?.charAt(0) || "U"}
+                  size="xl"
+                />
+                <div>
+                  <p className="font-semibold">{session?.user?.name}</p>
+                  <p className="text-sm text-muted-foreground">{session?.user?.email}</p>
+                  <Button variant="outline" size="sm" className="mt-2">
+                    Change Photo
+                  </Button>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Full Name</label>
+                  <Input 
+                    value={profile.name}
+                    onChange={(e) => setProfile({...profile, name: e.target.value})}
+                    placeholder="Your name"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Email</label>
+                  <Input 
+                    value={profile.email}
+                    placeholder="your@email.com"
+                    disabled
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Email managed via Google OAuth
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Notifications */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Bell className="w-5 h-5" />
+                Notifications
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium">Email Notifications</p>
+                  <p className="text-sm text-muted-foreground">Receive updates via email</p>
+                </div>
+                <input 
+                  type="checkbox" 
+                  checked={notifications.email}
+                  onChange={(e) => setNotifications({...notifications, email: e.target.checked})}
+                  className="w-5 h-5"
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium">Push Notifications</p>
+                  <p className="text-sm text-muted-foreground">Receive browser push notifications</p>
+                </div>
+                <input 
+                  type="checkbox" 
+                  checked={notifications.push}
+                  onChange={(e) => setNotifications({...notifications, push: e.target.checked})}
+                  className="w-5 h-5"
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium">Weekly Digest</p>
+                  <p className="text-sm text-muted-foreground">Receive weekly performance summary</p>
+                </div>
+                <input 
+                  type="checkbox" 
+                  checked={notifications.weekly}
+                  onChange={(e) => setNotifications({...notifications, weekly: e.target.checked})}
+                  className="w-5 h-5"
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Security */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="w-5 h-5" />
+                Security
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium">Password</p>
+                  <p className="text-sm text-muted-foreground">Managed via Google OAuth</p>
+                </div>
+                <Badge variant="secondary">Not Available</Badge>
+              </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium">Two-Factor Authentication</p>
+                  <p className="text-sm text-muted-foreground">Managed via Google OAuth</p>
+                </div>
+                <Badge variant="secondary">Not Available</Badge>
+              </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium">Google Account</p>
+                  <p className="text-sm text-muted-foreground">Connected via OAuth</p>
+                </div>
+                <Badge variant="success">Connected</Badge>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Right Column - Quick Settings */}
+        <div className="space-y-6">
+          {/* Appearance */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Palette className="w-5 h-5" />
+                Appearance
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Theme</label>
+                  <ThemeToggle />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Region */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Globe className="w-5 h-5" />
+                Region
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <label className="text-sm font-medium mb-2 block">Timezone</label>
+                <select className="w-full p-2 rounded-lg border bg-background">
+                  <option value="Asia/Bangkok">Asia/Bangkok (GMT+7)</option>
+                  <option value="Asia/Jakarta">Asia/Jakarta (GMT+7)</option>
+                  <option value="UTC">UTC</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-2 block">Language</label>
+                <select className="w-full p-2 rounded-lg border bg-background">
+                  <option value="en">English</option>
+                  <option value="id">Bahasa Indonesia</option>
+                </select>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Account Info */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Mail className="w-5 h-5" />
+                Account
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex items-center justify-between py-2 border-b">
+                <span className="text-sm">Role</span>
+                <Badge variant={isAdmin ? "destructive" : "secondary"}>
+                  {isAdmin ? "Admin" : "Member"}
+                </Badge>
+              </div>
+              <div className="flex items-center justify-between py-2 border-b">
+                <span className="text-sm">Auth Method</span>
+                <Badge variant="secondary">Google OAuth</Badge>
+              </div>
+              <div className="flex items-center justify-between py-2">
+                <span className="text-sm">Access</span>
+                <Badge variant="success">Full</Badge>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {/* Save Button */}
+      <div className="flex items-center justify-end gap-4 sticky bottom-4">
+        {saved && (
+          <span className="flex items-center gap-2 text-green-600">
+            <CheckCircle className="w-4 h-4" />
+            Saved!
+          </span>
+        )}
+        <Button onClick={handleSave} disabled={saving}>
+          {saving ? (
+            <>
+              <Clock className="w-4 h-4 mr-2 animate-spin" />
+              Saving...
+            </>
+          ) : (
+            <>
+              <Save className="w-4 h-4 mr-2" />
+              Save Changes
+            </>
+          )}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// Simple RefreshCw icon component
+function RefreshCwIcon({ className }: { className?: string }) {
+  return (
+    <svg 
+      className={className} 
+      fill="none" 
+      stroke="currentColor" 
+      viewBox="0 0 24 24"
+    >
+      <path 
+        strokeLinecap="round" 
+        strokeLinejoin="round" 
+        strokeWidth={2} 
+        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" 
+      />
+    </svg>
+  );
+}
