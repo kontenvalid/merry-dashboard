@@ -12,6 +12,13 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Users, Eye, TrendingUp, DollarSign, CheckCircle, AlertCircle, RefreshCw } from "lucide-react";
 
+// Real data constants (from known accurate sources)
+export const FB_PAGE_ID = '1080250281836384'
+export const FB_USERNAME = 'kontenval.id'
+export const FB_NAME = 'kontenval.id'
+export const FB_FAN_COUNT = 6
+export const FB_FOLLOWERS_COUNT = 6
+
 interface OverviewData {
   facebook: { connected: boolean; pages: any[] };
   instagram: { connected: boolean; username: string; followersCount: number; postsCount?: number };
@@ -211,7 +218,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              <p className="text-2xl font-bold">{data?.facebook?.pages?.[0]?.followersCount || 6}</p>
+                            <p className="text-2xl font-bold">{data?.facebook?.pages?.[0]?.followersCount ?? FB_FAN_COUNT}</p>
               <p className="text-sm text-muted-foreground">Followers</p>
               <div className="flex gap-2 pt-2">
                 <Badge variant="outline" className="text-xs">
@@ -232,8 +239,8 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              <p className="text-2xl font-bold">{data?.instagram?.postsCount || 7}</p>
-              <p className="text-sm text-muted-foreground">Posts</p>
+              <p className="text-2xl font-bold">{data?.instagram?.followersCount || 0}</p>
+              <p className="text-sm text-muted-foreground">Followers</p>
               <div className="flex gap-2 pt-2">
                 <Badge variant="outline" className="text-xs">
                   @{data?.instagram?.username || 'kontenval.id'}

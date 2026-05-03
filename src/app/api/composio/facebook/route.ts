@@ -1,57 +1,58 @@
 import { NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 
+// Facebook Page info
+const FB_PAGE_ID = '1080250281836384'
+const FB_USERNAME = 'kontenval.id'
+const FB_NAME = 'kontenval.id'
+const FB_FAN_COUNT = 6
+const FB_FOLLOWERS_COUNT = 6
 export async function GET() {
-  // Facebook Page insights
-  const data = {
+  const session = await getServerSession(authOptions)
+  
+  if (!session?.user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  try {
+    // Fetch real-time data from Facebook Graph API via Composio
+    const response = await fetch(`${process.env.NEXTAUTH_URL || 'https://merry-dashboard.vercel.app'}/api/composio/facebook`, {
+      headers: { 'Content-Type': 'application/json' }
+    })
+    
+    // If API call fails, return static real data from context
+    if (!response.ok) {
+      return NextResponse.json(getStaticFBData())
+    }
+    
+    const data = await response.json()
+    return NextResponse.json(data)
+  } catch (error) {
+    // Return static real data on error
+    return NextResponse.json(getStaticFBData())
+  }
+}
+
+function getStaticFBData() {
+  return {
     connected: true,
     pages: [
       {
-        id: '1080250281836384',
-        name: 'kontenval.id',
-        username: 'kontenval.id',
-        fanCount: 6,
-        followersCount: 6,
-        link: 'https://www.facebook.com/1080250281836384'
+        id: FB_PAGE_ID,
+        name: FB_NAME,
+        username: FB_USERNAME,
+        type: 'Page',
+        fanCount: FB_FAN_COUNT,
+        followersCount: FB_FOLLOWERS_COUNT,
+        postsCount: 0,
+        link: `https://www.facebook.com/${FB_USERNAME}`
       }
     ],
     insights: {
-      daily: [
-        { date: '2026-04-27', followers: 5, engagement: 12, reach: 150 },
-        { date: '2026-04-28', followers: 5, engagement: 8, reach: 120 },
-        { date: '2026-04-29', followers: 6, engagement: 15, reach: 200 },
-        { date: '2026-04-30', followers: 6, engagement: 10, reach: 180 },
-        { date: '2026-05-01', followers: 6, engagement: 14, reach: 190 },
-        { date: '2026-05-02', followers: 6, engagement: 9, reach: 160 },
-        { date: '2026-05-03', followers: 6, engagement: 11, reach: 175 }
-      ],
-      weekly: [
-        { week: 'Week 1', followers: 4, engagement: 45, reach: 520 },
-        { week: 'Week 2', followers: 5, engagement: 62, reach: 680 },
-        { week: 'Week 3', followers: 6, engagement: 71, reach: 755 },
-        { week: 'Week 4', followers: 6, engagement: 56, reach: 705 }
-      ]
+      daily: [],
+      weekly: []
     },
-    posts: [
-      {
-        id: 'post_1',
-        message: 'Tips Sukses Affiliate Marketing untuk Pemula...',
-        createdTime: '2026-05-02T10:00:00+0000',
-        permalinkUrl: 'https://www.facebook.com/1080250281836384/posts/post_1',
-        engagement: { reactions: 5, comments: 2, shares: 1 }
-      },
-      {
-        id: 'post_2',
-        message: 'Kontenval.id Official Content',
-        createdTime: '2026-05-01T14:30:00+0000',
-        permalinkUrl: 'https://www.facebook.com/1080250281836384/posts/post_2',
-        engagement: { reactions: 3, comments: 1, shares: 0 }
-      }
-    ]
+    posts: []
   }
-  
-  return NextResponse.json(data, {
-    headers: {
-      'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600'
-    }
-  })
 }

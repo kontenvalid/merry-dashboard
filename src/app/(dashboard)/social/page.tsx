@@ -1,57 +1,172 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/ui/avatar";
 import { PlatformBadge } from "@/components/platform-badge";
-import { useState } from "react";
+import { Loader2 } from "lucide-react";
 import { Plus, RefreshCw, ExternalLink, CheckCircle, AlertCircle } from "lucide-react";
 
-// Mock connected accounts
-const connectedAccounts = [
-  {
-    id: "1",
-    platform: "facebook" as const,
-    name: "Satria Ady Chandra",
-    username: "@satriaadyc",
-    followers: "4,450",
-    status: "active" as const,
-    connectedAt: "2024-04-30",
+// Real account data from context
+const REAL_ACCOUNTS = {
+  facebook: {
+    id: '1080250281836384',
+    name: 'kontenval.id',
+    username: '@kontenval.id',
+    type: 'Page',
+    followers: 6,
+    fanCount: 6,
+    link: 'https://www.facebook.com/kontenval.id'
   },
-  {
-    id: "2",
-    platform: "instagram" as const,
-    name: "kontenval.id",
-    username: "@kontenval.id",
-    followers: "4,100",
-    status: "active" as const,
-    connectedAt: "2024-04-30",
+  instagram: {
+    id: 'kontenval.id',
+    name: 'kontenval.id',
+    username: '@kontenval.id',
+    type: 'Creator',
+    followers: 0, // May need API access
+    mediaCount: 7,
+    link: 'https://instagram.com/kontenval.id'
   },
-  {
-    id: "3",
-    platform: "youtube" as const,
-    name: "kontenval id",
-    username: "@kontenvalid",
-    followers: "2,400",
-    status: "active" as const,
-    connectedAt: "2024-04-30",
-  },
-];
+  youtube: {
+    id: 'UCBnBSmXbITcJBnBnKnFC_XQ',
+    name: 'kontenval id',
+    username: '@kontenvalid',
+    type: 'Channel',
+    subscribers: 11,
+    videos: 7,
+    views: 4616,
+    link: 'https://youtube.com/@kontenvalid'
+  }
+}
 
-const availablePlatforms = [
-  { id: "twitter", name: "Twitter/X", icon: "🐦", status: "not-connected" },
-  { id: "tiktok", name: "TikTok", icon: "🎵", status: "not-connected" },
-  { id: "linkedin", name: "LinkedIn", icon: "💼", status: "not-available" },
-];
+interface ConnectedAccount {
+  id: string;
+  platform: "facebook" | "instagram" | "youtube";
+  name: string;
+  username: string;
+  followers: string;
+  status: "active" | "inactive";
+  connectedAt: string;
+  link: string;
+}
 
 export default function SocialPage() {
   const [loading, setLoading] = useState(false);
+  const [accounts, setAccounts] = useState<ConnectedAccount[]>([]);
+  const [loadingData, setLoadingData] = useState(true);
+
+  useEffect(() => {
+    // Load real account data
+    const loadAccounts = async () => {
+      try {
+        const response = await fetch('/api/composio/overview');
+        if (response.ok) {
+          const data = await response.json();
+          
+          const connected: ConnectedAccount[] = [];
+          
+          // Facebook
+          if (data.facebook?.connected && data.facebook.pages?.[0]) {
+            const fb = data.facebook.pages[0];
+            connected.push({
+              id: fb.id,
+              platform: 'facebook',
+              name: fb.name || 'kontenval.id',
+              username: `@${fb.username || 'kontenval.id'}`,
+              followers: (fb.followersCount || fb.fanCount || 6).toLocaleString(),
+              status: 'active',
+              connectedAt: '2024-04-30',
+              link: fb.link || 'https://www.facebook.com/kontenval.id'
+            });
+          }
+          
+          // Instagram
+          if (data.instagram?.connected) {
+            connected.push({
+              id: 'instagram',
+              platform: 'instagram',
+              name: data.instagram.fullName || 'kontenval.id',
+              username: `@${data.instagram.username || 'kontenval.id'}`,
+              followers: (data.instagram.followersCount || 0).toLocaleString(),
+              status: 'active',
+              connectedAt: '2024-04-30',
+              link: data.instagram.profileUrl || 'https://instagram.com/kontenval.id'
+            });
+          }
+          
+          // YouTube
+          if (data.youtube?.connected) {
+            connected.push({
+              id: data.youtube.channelId || 'youtube',
+              platform: 'youtube',
+              name: data.youtube.title || 'kontenval id',
+              username: data.youtube.handle || '@kontenvalid',
+              followers: (data.youtube.subscriberCount || 11).toLocaleString(),
+              status: 'active',
+              connectedAt: '2024-04-30',
+              link: `https://youtube.com${data.youtube.handle || '/@kontenvalid'}`
+            });
+          }
+          
+          setAccounts(connected);
+        }
+      } catch (error) {
+        console.error('Failed to load accounts:', error);
+        // Fallback to static real data
+        setAccounts([
+          {
+            id: REAL_ACCOUNTS.facebook.id,
+            platform: 'facebook',
+            name: REAL_ACCOUNTS.facebook.name,
+            username: REAL_ACCOUNTS.facebook.username,
+            followers: REAL_ACCOUNTS.facebook.followers.toLocaleString(),
+            status: 'active',
+            connectedAt: '2024-04-30',
+            link: REAL_ACCOUNTS.facebook.link
+          },
+          {
+            id: REAL_ACCOUNTS.instagram.id,
+            platform: 'instagram',
+            name: REAL_ACCOUNTS.instagram.name,
+            username: REAL_ACCOUNTS.instagram.username,
+            followers: REAL_ACCOUNTS.instagram.followers.toLocaleString(),
+            status: 'active',
+            connectedAt: '2024-04-30',
+            link: REAL_ACCOUNTS.instagram.link
+          },
+          {
+            id: REAL_ACCOUNTS.youtube.id,
+            platform: 'youtube',
+            name: REAL_ACCOUNTS.youtube.name,
+            username: REAL_ACCOUNTS.youtube.username,
+            followers: REAL_ACCOUNTS.youtube.subscribers.toLocaleString(),
+            status: 'active',
+            connectedAt: '2024-04-30',
+            link: REAL_ACCOUNTS.youtube.link
+          }
+        ]);
+      } finally {
+        setLoadingData(false);
+      }
+    };
+    
+    loadAccounts();
+  }, []);
 
   const handleRefresh = () => {
     setLoading(true);
-    setTimeout(() => setLoading(false), 2000);
+    setTimeout(() => setLoading(false), 1500);
   };
+
+  if (loadingData) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -74,12 +189,12 @@ export default function SocialPage() {
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
             <span>Connected Accounts</span>
-            <Badge variant="success">{connectedAccounts.length} Active</Badge>
+            <Badge variant="success">{accounts.length} Active</Badge>
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {connectedAccounts.map((account) => (
+            {accounts.map((account) => (
               <div
                 key={account.id}
                 className="p-4 rounded-xl border bg-card hover:shadow-md transition-all"
@@ -106,76 +221,63 @@ export default function SocialPage() {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Connected</span>
-                    <span className="text-muted-foreground">{account.connectedAt}</span>
+                    <span className="font-medium">{account.connectedAt}</span>
                   </div>
                 </div>
-                <div className="flex gap-2 mt-4">
-                  <Button variant="outline" size="sm" className="flex-1">
-                    View Insights
-                  </Button>
-                  <Button variant="ghost" size="sm">
-                    <ExternalLink className="w-4 h-4" />
-                  </Button>
-                </div>
+                <a 
+                  href={account.link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-4 w-full flex items-center justify-center gap-2 text-sm text-blue-600 hover:underline"
+                >
+                  View Profile <ExternalLink className="w-3 h-3" />
+                </a>
               </div>
             ))}
           </div>
         </CardContent>
       </Card>
 
-      {/* Add New Platform */}
+      {/* Available Platforms */}
       <Card>
         <CardHeader>
-          <CardTitle>Connect More Platforms</CardTitle>
+          <CardTitle>Available Platforms</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {availablePlatforms.map((platform) => (
+            {[
+              { id: "twitter", name: "Twitter/X", icon: "🐦", connected: false },
+              { id: "tiktok", name: "TikTok", icon: "🎵", connected: false },
+              { id: "linkedin", name: "LinkedIn", icon: "💼", connected: false },
+            ].map((platform) => (
               <div
                 key={platform.id}
-                className="p-4 rounded-xl border border-dashed text-center opacity-75 hover:opacity-100 transition-opacity"
+                className="p-4 rounded-xl border border-dashed bg-muted/30 text-center"
               >
-                <div className="text-4xl mb-3">{platform.icon}</div>
-                <p className="font-medium mb-1">{platform.name}</p>
-                <Badge variant={platform.status === "not-connected" ? "warning" : "secondary"}>
-                  {platform.status === "not-connected" ? "Available" : platform.status}
-                </Badge>
-                {platform.status === "not-connected" ? (
-                  <Button size="sm" className="w-full mt-3">
-                    <Plus className="w-4 h-4 mr-1" />
-                    Connect
-                  </Button>
-                ) : (
-                  <p className="text-xs text-muted-foreground mt-2">
-                    {platform.status === "not-available"
-                      ? "Not available in Composio"
-                      : "Coming soon"}
-                  </p>
-                )}
+                <div className="text-3xl mb-2">{platform.icon}</div>
+                <p className="font-medium">{platform.name}</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {platform.connected ? "Connected" : "Not connected"}
+                </p>
               </div>
             ))}
           </div>
         </CardContent>
       </Card>
 
-      {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="p-6">
-          <p className="text-muted-foreground mb-1">Total Followers</p>
-          <p className="text-3xl font-bold">10,950</p>
-          <p className="text-sm text-green-600">↑ 12.5% this week</p>
-        </Card>
-        <Card className="p-6">
-          <p className="text-muted-foreground mb-1">Active Platforms</p>
-          <p className="text-3xl font-bold">3</p>
-          <p className="text-sm text-muted-foreground">Facebook, Instagram, YouTube</p>
-        </Card>
-        <Card className="p-6">
-          <p className="text-muted-foreground mb-1">Last Synced</p>
-          <p className="text-3xl font-bold">Just now</p>
-          <p className="text-sm text-muted-foreground">Auto-sync every hour</p>
-        </Card>
-      </div>
+      {/* Connect New Account */}
+      <Card className="border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-900/20">
+        <CardContent className="flex flex-col items-center justify-center py-8">
+          <Plus className="w-12 h-12 text-blue-600 mb-4" />
+          <h3 className="text-lg font-semibold mb-2">Connect New Platform</h3>
+          <p className="text-sm text-muted-foreground text-center mb-4 max-w-md">
+            Connect more social media accounts to see all your analytics in one place.
+          </p>
+          <Button>
+            Connect Platform
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 }
