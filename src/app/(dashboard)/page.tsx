@@ -14,7 +14,7 @@ import { Users, Eye, TrendingUp, DollarSign, CheckCircle, AlertCircle, RefreshCw
 
 interface OverviewData {
   facebook: { connected: boolean; pages: any[] };
-  instagram: { connected: boolean; username: string; followersCount: number };
+  instagram: { connected: boolean; username: string; followersCount: number; postsCount?: number };
   youtube: { connected: boolean; title: string; subscriberCount: number; videoCount: number };
   metaAds: { connected: boolean; summary?: any };
   googleDrive: { connected: boolean; files: any[] };
@@ -232,7 +232,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              <p className="text-2xl font-bold">{data?.instagram?.mediaCount || 7}</p>
+              <p className="text-2xl font-bold">{data?.instagram?.postsCount || 7}</p>
               <p className="text-sm text-muted-foreground">Posts</p>
               <div className="flex gap-2 pt-2">
                 <Badge variant="outline" className="text-xs">

@@ -2,11 +2,12 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 export interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
-  variant?: "default" | "secondary" | "destructive" | "outline" | "success" | "warning";
+  variant?: "default" | "secondary" | "destructive" | "outline" | "success" | "warning" | "primary";
 }
 
 const variantClasses = {
   default: "bg-primary text-primary-foreground",
+  primary: "bg-primary text-primary-foreground",
   secondary: "bg-secondary text-secondary-foreground",
   destructive: "bg-destructive text-destructive-foreground",
   outline: "border border-input bg-transparent",

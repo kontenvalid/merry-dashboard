@@ -6,28 +6,38 @@ import { cn } from "@/lib/utils";
 // Chart color palette - vibrant and readable in both modes
 export const chartColors = {
   light: {
-    facebook: "hsl(199 89% 48%)",      // Bright blue
-    instagram: "hsl(343 79% 55%)",      // Vibrant pink
-    youtube: "hsl(0 100% 50%)",         // YouTube red
-    meta: "hsl(213 94% 67%)",           // Meta blue
-    success: "hsl(142 71% 45%)",        // Green
-    warning: "hsl(38 92% 50%)",         // Amber
-    info: "hsl(199 89% 48%)",           // Blue
-    purple: "hsl(270 60% 55%)",         // Purple
-    orange: "hsl(25 95% 55%)",          // Orange
-    pink: "hsl(330 80% 60%)",           // Pink
+    background: "hsl(0 0% 100%)",
+    card: "hsl(0 0% 100%)",
+    border: "hsl(214.3 31.8% 91.4%)",
+    text: "hsl(222.2 84% 4.9%)",
+    muted: "hsl(215.4 16.3% 46.9%)",
+    facebook: "hsl(199 89% 48%)",
+    instagram: "hsl(343 79% 55%)",
+    youtube: "hsl(0 100% 50%)",
+    meta: "hsl(213 94% 67%)",
+    success: "hsl(142 71% 45%)",
+    warning: "hsl(38 92% 50%)",
+    info: "hsl(199 89% 48%)",
+    purple: "hsl(270 60% 55%)",
+    orange: "hsl(25 95% 55%)",
+    pink: "hsl(330 80% 60%)",
   },
   dark: {
-    facebook: "hsl(199 89% 60%)",       // Lighter blue
-    instagram: "hsl(343 79% 65%)",      // Lighter pink
-    youtube: "hsl(0 100% 60%)",         // Lighter red
-    meta: "hsl(213 94% 70%)",           // Lighter blue
-    success: "hsl(142 71% 55%)",       // Lighter green
-    warning: "hsl(38 92% 55%)",        // Lighter amber
-    info: "hsl(199 89% 60%)",           // Lighter blue
-    purple: "hsl(270 60% 65%)",         // Lighter purple
-    orange: "hsl(25 95% 60%)",          // Lighter orange
-    pink: "hsl(330 80% 65%)",           // Lighter pink
+    background: "hsl(222.2 84% 4.9%)",
+    card: "hsl(222.2 84% 6%)",
+    border: "hsl(217.2 32.6% 17.5%)",
+    text: "hsl(210 40% 98%)",
+    muted: "hsl(215 20.2% 65.1%)",
+    facebook: "hsl(199 89% 60%)",
+    instagram: "hsl(343 79% 65%)",
+    youtube: "hsl(0 100% 60%)",
+    meta: "hsl(213 94% 70%)",
+    success: "hsl(142 71% 55%)",
+    warning: "hsl(38 92% 55%)",
+    info: "hsl(199 89% 60%)",
+    purple: "hsl(270 60% 65%)",
+    orange: "hsl(25 95% 60%)",
+    pink: "hsl(330 80% 65%)",
   },
 };
 
