@@ -503,12 +503,58 @@ export default function SettingsPage() {
                     </div>
                     <Badge variant="success" className="text-xs">Active</Badge>
                   </div>
-                  <div className="flex items-center justify-between p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+                  <div className="flex items-center justify-between p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
                     <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full bg-green-500" />
+                      <div className="w-3 h-3 rounded-full bg-amber-500" />
                       <span className="text-sm">Meta Ads</span>
                     </div>
-                    <Badge variant="success" className="text-xs">Active</Badge>
+                    <Badge variant="warning" className="text-xs">Reconnect</Badge>
+                  </div>
+                </div>
+              </div>
+
+              {/* Meta Ads Long-Lived Token Instructions */}
+              <div className="pt-4 border-t">
+                <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+                  <p className="font-medium text-amber-700 dark:text-amber-300 mb-2 flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4" />
+                    Meta Ads Token Expired
+                  </p>
+                  <p className="text-sm text-amber-600 dark:text-amber-400 mb-3">
+                    Meta Ads requires a long-lived access token (60 days) to stay connected. 
+                    Here's how to get one that lasts longer:
+                  </p>
+                  <div className="space-y-2 text-sm">
+                    <p className="font-medium">Option 1: Exchange for Long-Lived Token (Recommended)</p>
+                    <ol className="list-decimal list-inside space-y-1 text-muted-foreground ml-2">
+                      <li>Go to <a href="https://business.facebook.com" target="_blank" className="text-blue-600 hover:underline">business.facebook.com</a></li>
+                      <li>Navigate to Settings → Business Settings</li>
+                      <li>Select your app under Users → Assets</li>
+                      <li>Click "Generate Token" for your ad account</li>
+                      <li>Use Graph API to extend token: <code className="text-xs bg-muted px-1 rounded">GET /oauth/access_token?grant_type=fb_exchange_token&fb_exchange_token=SHORT_LIVED_TOKEN&client_id=APP_ID&client_secret=APP_SECRET</code></li>
+                    </ol>
+                  </div>
+                  <div className="mt-4 pt-3 border-t border-amber-200 dark:border-amber-700">
+                    <p className="font-medium text-sm mb-2">Option 2: Use Composio Native Integration</p>
+                    <p className="text-xs text-muted-foreground">
+                      In Composio dashboard, reconnect Meta Ads using OAuth flow. 
+                      Composio handles token refresh automatically if you have a paid plan.
+                    </p>
+                    <a 
+                      href="https://app.composio.dev/user/integrations/metas-ads" 
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-2 inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
+                    >
+                      Open Composio Meta Ads <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
+                  <div className="mt-4 pt-3 border-t border-amber-200 dark:border-amber-700">
+                    <p className="font-medium text-sm mb-2">Option 3: Permanent System User Token</p>
+                    <p className="text-xs text-muted-foreground">
+                      For production, create a Facebook System User with permanent access to ad accounts. 
+                      This doesn't expire but requires Business Verification.
+                    </p>
                   </div>
                 </div>
               </div>
