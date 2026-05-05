@@ -1,8 +1,11 @@
 import { NextResponse } from 'next/server'
-import { getConsumerApiKey } from '@/lib/composio-store'
 
 export async function GET() {
-  const apiKey = process.env.COMPOSIO_API_KEY || 'test'
+  const apiKey = process.env.COMPOSIO_API_KEY
+  
+  if (!apiKey) {
+    return NextResponse.json({ error: 'COMPOSIO_API_KEY not set' }, { status: 500 })
+  }
   
   try {
     const response = await fetch('https://backend.composio.dev/v3/mcp', {
@@ -23,18 +26,28 @@ export async function GET() {
       })
     })
     
-    const data = await response.json()
+    const text = await response.text()
+    let data
+    try {
+      data = JSON.parse(text)
+    } catch {
+      return NextResponse.json({
+        status: response.status,
+        statusText: response.statusText,
+        error: 'Failed to parse JSON',
+        responseText: text.substring(0, 500)
+      })
+    }
     
     return NextResponse.json({
       status: response.status,
-      apiKeySet: !!process.env.COMPOSIO_API_KEY,
-      apiKeyPrefix: process.env.COMPOSIO_API_KEY?.substring(0, 10) || 'NOT SET',
+      apiKeyPrefix: apiKey.substring(0, 10) + '...',
       data
     })
   } catch (error: any) {
     return NextResponse.json({
       error: error.message,
-      apiKeySet: !!process.env.COMPOSIO_API_KEY
+      stack: error.stack
     }, { status: 500 })
   }
 }
