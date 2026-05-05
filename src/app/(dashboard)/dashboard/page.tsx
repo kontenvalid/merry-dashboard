@@ -8,7 +8,7 @@ import { StatCard } from "@/components/stat-card";
 import { FollowerGrowthChart } from "@/components/charts/follower-growth-chart";
 import { EngagementChart } from "@/components/charts/engagement-chart";
 import { PlatformBadge } from "@/components/platform-badge";
-import { Users, Eye, TrendingUp, DollarSign, RefreshCw } from "lucide-react";
+import { Users, Eye, TrendingUp, DollarSign } from "lucide-react";
 
 interface FollowerData {
   date: string;
@@ -62,14 +62,10 @@ export default function DashboardPage() {
   // Generate pattern-based data for realistic variation
   const generatePatternData = (baseCounts: { fb: number; ig: number; yt: number }, days: string[]) => {
     return days.map((dateStr, i) => {
-      // Create realistic pattern:
-      // - Weekends have slightly higher engagement
-      // - Gradual growth trend
-      // - Small random variation (5-15%)
       const dayOfWeek = new Date(dateStr).getDay();
       const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-      const growthFactor = 1 + (i * 0.02); // 2% growth per day
-      const variation = 0.95 + Math.random() * 0.1; // 5% variation
+      const growthFactor = 1 + (i * 0.02);
+      const variation = 0.95 + Math.random() * 0.1;
       
       return {
         date: dateStr,
@@ -80,48 +76,24 @@ export default function DashboardPage() {
     });
   };
 
-  // Fetch historical data from database
-  const fetchHistoricalData = async () => {
-    try {
-      const response = await fetch('/api/analytics?days=30');
-      if (response.ok) {
-        const result = await response.json();
-        return result.data || [];
-      }
-    } catch (error) {
-      console.log('No historical data available');
-    }
-    return [];
-  };
-
-  // Sync current data to database
-  const syncCurrentData = async () => {
-    try {
-      await fetch('/api/analytics', { method: 'POST' });
-    } catch (error) {
-      console.log('Sync not available');
-    }
-  };
-
-  // Fetch real data from API
+  // Fetch real data from API (optimized - parallel calls)
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
-        // First, try to sync current data
-        await syncCurrentData();
+        // Parallel fetch all data
+        const [overviewRes, adsRes, historyRes] = await Promise.all([
+          fetch('/api/composio/overview'),
+          fetch('/api/composio/metaads'),
+          fetch('/api/analytics?days=7')
+        ]);
         
-        // Fetch historical data from DB
-        const historicalData = await fetchHistoricalData();
-        
-        // Fetch current data from API
-        const response = await fetch('/api/composio/overview');
-        if (response.ok) {
-          const data = await response.json();
+        // Process overview data
+        if (overviewRes.ok) {
+          const data = await overviewRes.json();
           
           if (data.data) {
-            const { facebook, instagram, youtube, metaAds } = data.data;
+            const { facebook, instagram, youtube } = data.data;
             
-            // Calculate stats
             const fbCount = facebook?.followers || 6;
             const igCount = instagram?.followers || 0;
             const ytCount = youtube?.subscribers || 11;
@@ -139,24 +111,18 @@ export default function DashboardPage() {
               ? ((totalEngagement / totalFollowers) * 100).toFixed(1)
               : "0";
             
-            // Calculate total ad spend (always in IDR for consistency)
-            // Fetch ads summary from metaads API
-            const adsResponse = await fetch('/api/composio/metaads');
-            let adsSummary = { totalSpend: 0, isDemo: true };
-            if (adsResponse.ok) {
-              const adsData = await adsResponse.json();
+            let adsSummary = { totalSpend: 0 };
+            if (adsRes.ok) {
+              const adsData = await adsRes.json();
               adsSummary = adsData.summary || adsSummary;
             }
-            
-            const totalSpend = adsSummary.totalSpend || 0;
-            const adSpendCurrency = 'IDR';
             
             setStats({
               totalFollowers,
               totalReach,
               engagementRate: parseFloat(engagementRate),
-              adSpend: totalSpend,
-              adSpendCurrency: adSpendCurrency
+              adSpend: adsSummary.totalSpend || 0,
+              adSpendCurrency: 'IDR'
             });
 
             // Generate dates for last 7 days
@@ -168,11 +134,16 @@ export default function DashboardPage() {
               last7Days.push(date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }));
             }
 
-            // If we have real historical data from DB, use it
+            // Process historical data
+            let historicalData: AnalyticsRecord[] = [];
+            if (historyRes.ok) {
+              const historyResult = await historyRes.json();
+              historicalData = historyResult.data || [];
+            }
+
             if (historicalData.length > 0) {
               const formattedData = last7Days.map((dateStr) => {
                 const dateKey = new Date(dateStr).toISOString().split('T')[0];
-                
                 const fbRecord = historicalData.find(
                   (r: AnalyticsRecord) => r.platform === 'FACEBOOK' && r.date?.includes(dateKey)
                 );
@@ -192,28 +163,14 @@ export default function DashboardPage() {
               });
               setFollowerData(formattedData);
             } else {
-              // No historical data - generate pattern-based data
               const baseCounts = { fb: fbCount, ig: igCount, yt: ytCount };
               setFollowerData(generatePatternData(baseCounts, last7Days));
             }
             
-            // Engagement data by platform - using REAL data
             setEngagementData([
-              { 
-                name: 'Facebook', 
-                engagement: facebook?.engagement?.likes || 0, 
-                reach: facebook?.posts?.reach || 0 
-              },
-              { 
-                name: 'Instagram', 
-                engagement: instagram?.engagement?.likes || 0, 
-                reach: instagram?.posts?.reach || 0 
-              },
-              { 
-                name: 'YouTube', 
-                engagement: youtube?.engagement?.likes || 0, 
-                reach: youtube?.stats?.totalViews || 0 
-              }
+              { name: 'Facebook', engagement: facebook?.engagement?.likes || 0, reach: facebook?.posts?.reach || 0 },
+              { name: 'Instagram', engagement: instagram?.engagement?.likes || 0, reach: instagram?.posts?.reach || 0 },
+              { name: 'YouTube', engagement: youtube?.engagement?.likes || 0, reach: youtube?.stats?.totalViews || 0 }
             ]);
           }
         }
@@ -231,17 +188,10 @@ export default function DashboardPage() {
 
   const handleQuickAction = (action: string) => {
     switch (action) {
-      case 'analytics':
-        router.push('/analytics');
-        break;
-      case 'social':
-        router.push('/social');
-        break;
-      case 'ads':
-        router.push('/ads');
-        break;
-      default:
-        break;
+      case 'analytics': router.push('/analytics'); break;
+      case 'social': router.push('/social'); break;
+      case 'ads': router.push('/ads'); break;
+      default: break;
     }
   };
 
@@ -309,7 +259,6 @@ export default function DashboardPage() {
 
       {/* Charts Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Follower Growth */}
         <div className="bg-card rounded-xl p-6 border">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold text-lg">Follower Growth</h3>
@@ -318,7 +267,6 @@ export default function DashboardPage() {
           <FollowerGrowthChart data={followerData} />
         </div>
 
-        {/* Engagement by Platform */}
         <div className="bg-card rounded-xl p-6 border">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold text-lg">Engagement Overview</h3>
