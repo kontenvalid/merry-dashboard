@@ -20,51 +20,7 @@ export async function GET() {
     const activeAccounts = META_ADS_ACCOUNTS.filter(a => a.status === 'active')
     
     // ========================================
-    // MODE 1: Try Composio first
-    // ========================================
-    let composioData = null
-    try {
-      const composioKey = process.env.COMPOSIO_API_KEY
-      if (composioKey && composioKey !== 'your-composio-api-key-here') {
-        const response = await fetch('https://api.composio.dev/v2/tools/connect/status', {
-          headers: {
-            'Authorization': `Bearer ${composioKey}`,
-            'Content-Type': 'application/json'
-          }
-        })
-        if (response.ok) {
-          // Try to get Meta Ads data via Composio
-          const metaResponse = await fetch('https://api.composio.dev/v2/tools/metaads/ads', {
-            headers: {
-              'Authorization': `Bearer ${composioKey}`,
-              'Content-Type': 'application/json'
-            }
-          })
-          if (metaResponse.ok) {
-            composioData = await metaResponse.json()
-          }
-        }
-      }
-    } catch (e) {
-      console.log('Composio not available, will use direct Graph API')
-    }
-    
-    // If Composio works and has data, return it
-    if (composioData?.data?.campaigns?.length > 0) {
-      return NextResponse.json({
-        source: 'composio',
-        connected: true,
-        accounts: META_ADS_ACCOUNTS,
-        campaigns: composioData.data.campaigns,
-        daily: composioData.data.daily || [],
-        summary: composioData.data.summary
-      }, {
-        headers: { 'Cache-Control': 'no-store' }
-      })
-    }
-    
-    // ========================================
-    // MODE 2: Direct Graph API (fallback)
+    // MODE 1: Graph API FIRST (Primary)
     // ========================================
     if (metaAccessToken) {
       let allCampaigns: any[] = []
@@ -152,7 +108,7 @@ export async function GET() {
       // If we have real data, return it
       if (allCampaigns.length > 0) {
         return NextResponse.json({
-          source: 'facebook_api',
+          source: 'facebook_graph_api',
           connected: true,
           tokenValid: true,
           accounts: META_ADS_ACCOUNTS,
@@ -176,40 +132,68 @@ export async function GET() {
         })
       }
       
-      // Token is valid but no campaigns found
-      return NextResponse.json({
-        source: 'facebook_api',
-        connected: true,
-        tokenValid: true,
-        accounts: META_ADS_ACCOUNTS.map(a => ({
-          ...a,
-          hasData: a.status === 'active'
-        })),
-        campaigns: [],
-        daily: [],
-        summary: {
-          totalSpend: 0,
-          totalImpressions: 0,
-          totalConversions: 0,
-          averageCTR: 0,
-          averageROAS: 0,
-          message: 'No active campaigns found. Create a campaign in Meta Ads Manager.'
-        }
-      }, {
-        headers: { 'Cache-Control': 'no-store' }
-      })
+      // Token is valid but no campaigns found - try Composio as fallback
+      console.log('Graph API: No campaigns found, trying Composio...')
     }
-
+    
     // ========================================
-    // MODE 3: Demo data (no token configured)
+    // MODE 2: Composio FALLBACK
+    // ========================================
+    try {
+      const composioKey = process.env.COMPOSIO_API_KEY
+      if (composioKey && composioKey !== 'your-composio-api-key-here') {
+        const response = await fetch('https://backend.composio.dev/v3/mcp', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${composioKey}`,
+            'x-api-key': composioKey,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            id: 1,
+            method: 'tools/call',
+            params: {
+              name: 'get_meta_ads_performance',
+              arguments: { account_ids: activeAccounts.map(a => a.id) }
+            }
+          })
+        })
+        
+        if (response.ok) {
+          const data = await response.json()
+          const composioData = data.result || data
+          
+          if (composioData?.campaigns?.length > 0) {
+            return NextResponse.json({
+              source: 'composio',
+              connected: true,
+              accounts: META_ADS_ACCOUNTS,
+              campaigns: composioData.campaigns,
+              daily: composioData.daily || [],
+              summary: composioData.summary
+            }, {
+              headers: { 'Cache-Control': 'no-store' }
+            })
+          }
+        }
+      }
+    } catch (e) {
+      console.log('Composio not available for Meta Ads, will use demo data')
+    }
+    
+    // ========================================
+    // MODE 3: Demo data (final fallback)
     // ========================================
     return NextResponse.json({
       connected: false,
-      tokenValid: false,
+      tokenValid: !!metaAccessToken,
       source: 'demo',
-      error: 'Add your long-lived Meta token in Settings to sync real ad data.',
+      error: metaAccessToken 
+        ? 'Graph API returned no campaigns. Try checking your Meta Ads Manager.'
+        : 'Add your long-lived Meta token in Settings to sync real ad data.',
       accounts: META_ADS_ACCOUNTS,
-      setupInstructions: {
+      setupInstructions: metaAccessToken ? null : {
         step1: 'Go to https://developers.facebook.com/tools/explorer/',
         step2: 'Generate token with ads_management, ads_read, business_management permissions',
         step3: 'Exchange to long-lived (60 days) token',
@@ -242,6 +226,7 @@ export async function GET() {
     }, {
       headers: { 'Cache-Control': 'public, s-maxage=300' }
     })
+    
   } catch (error) {
     console.error('Meta Ads sync error:', error)
     return NextResponse.json({

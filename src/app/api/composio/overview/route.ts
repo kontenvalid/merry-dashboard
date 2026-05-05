@@ -32,7 +32,7 @@ export async function GET() {
     // Fetch data from multiple Composio API endpoints in parallel
     const [fbData, igData, ytData, adsData] = await Promise.allSettled([
       fetchFromComposioAPI(apiKey, 'facebook', FB_PAGE_ID),
-      fetchFromComposioAPI(apiKey, 'instagram'),
+      fetchFromComposioAPI(apiKey, 'instagram', 'me'),
       fetchFromComposioAPI(apiKey, 'youtube', YT_HANDLE),
       fetchFromComposioAPI(apiKey, 'meta_ads')
     ])
@@ -88,8 +88,9 @@ export async function GET() {
           connected: true,
           username: 'kontenval.id',
           fullName: 'kontenval.id',
-          followers: 0,
-          mediaCount: 7,
+          followers: instagram?.followers_count || 0,
+          followers_count: instagram?.followers_count || 0,
+          mediaCount: instagram?.media_count || 7,
           engagement: { likes: 0, comments: 0, saves: 0 },
           posts: { reach: 0, impressions: 0 },
           link: 'https://instagram.com/kontenval.id'
@@ -149,8 +150,8 @@ async function fetchFromComposioAPI(apiKey: string | undefined, platform: string
         arguments_ = { page_id: param || FB_PAGE_ID }
         break
       case 'instagram':
-        toolName = 'get_instagram_profile_metrics'
-        arguments_ = { username: param || 'kontenval.id' }
+        toolName = 'INSTAGRAM_GET_USER_INFO'
+        arguments_ = { ig_user_id: param || 'me' }
         break
       case 'youtube':
         toolName = 'get_youtube_channel_metrics'
