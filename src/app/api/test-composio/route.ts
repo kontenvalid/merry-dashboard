@@ -8,7 +8,8 @@ export async function GET() {
   }
   
   try {
-    const response = await fetch('https://backend.composio.dev/v3/mcp', {
+    // Test the new REST API endpoint
+    const response = await fetch('https://backend.composio.dev/api/v3.1/tools/execute/INSTAGRAM_GET_USER_INFO', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
@@ -16,33 +17,18 @@ export async function GET() {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        jsonrpc: '2.0',
-        id: 1,
-        method: 'tools/call',
-        params: {
-          name: 'INSTAGRAM_GET_USER_INFO',
-          arguments: { ig_user_id: 'me' }
-        }
+        userId: 'me',
+        arguments: { ig_user_id: 'me' }
       })
     })
     
     const text = await response.text()
-    let data
-    try {
-      data = JSON.parse(text)
-    } catch {
-      return NextResponse.json({
-        status: response.status,
-        statusText: response.statusText,
-        error: 'Failed to parse JSON',
-        responseText: text.substring(0, 500)
-      })
-    }
     
     return NextResponse.json({
       status: response.status,
+      statusText: response.statusText,
       apiKeyPrefix: apiKey.substring(0, 10) + '...',
-      data
+      responseText: text.substring(0, 500)
     })
   } catch (error: any) {
     return NextResponse.json({
