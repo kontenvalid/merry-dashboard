@@ -12,7 +12,7 @@ interface PlatformBadgeProps {
 export function PlatformBadge({ platform, className }: PlatformBadgeProps) {
   const config: Record<string, { label: string; bg: string; text: string }> = {
     facebook: { label: "Facebook", bg: "bg-blue-600", text: "text-white" },
-    instagram: { label: "Instagram", bg: "bg-gradient-to-r from-purple-600 via-pink-500 to-orange-500", text: "text-white" },
+    instagram: { label: "Instagram", bg: "bg-pink-600", text: "text-white" }, // Use solid color for better light mode contrast
     youtube: { label: "YouTube", bg: "bg-red-600", text: "text-white" },
     meta_ads: { label: "Meta Ads", bg: "bg-blue-700", text: "text-white" },
   };
