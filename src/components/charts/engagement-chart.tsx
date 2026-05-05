@@ -42,12 +42,10 @@ const colorMap: Record<string, { primary: string; secondary: string }> = {
 export function EngagementChart({ data, className }: EngagementChartProps) {
   const { isDark } = useColors();
 
-  // Get colors for each data item based on platform name
   const getBarColors = (name: string, index: number): { primary: string; secondary: string } => {
     if (colorMap[name]) {
       return colorMap[name];
     }
-    // Fallback to cycling colors
     return defaultColors[index % defaultColors.length];
   };
 
@@ -115,12 +113,39 @@ export function EngagementChart({ data, className }: EngagementChartProps) {
             }}
           />
           
-          <Legend 
+          {/* Custom Legend with proper colors - visible in both modes */}
+          <Legend
             wrapperStyle={{ paddingTop: "20px" }}
-            formatter={(value) => (
-              <span style={{ color: isDark ? "#D1D5DB" : "#4B5563", fontWeight: 500 }}>
-                {value}
-              </span>
+            content={({ payload }) => (
+              <div className="flex items-center justify-center gap-6">
+                {payload?.map((entry, index) => {
+                  // Use distinct, vibrant colors that work in both light and dark mode
+                  const symbolColor = entry.value === "Engagement" 
+                    ? "#3B82F6" // Blue for Engagement
+                    : "#8B5CF6"; // Purple for Reach
+                  
+                  return (
+                    <div key={index} className="flex items-center gap-2">
+                      <div 
+                        className="w-3 h-3 rounded-sm" 
+                        style={{ 
+                          backgroundColor: symbolColor,
+                          boxShadow: isDark 
+                            ? `0 0 6px ${symbolColor}` 
+                            : `0 1px 3px rgba(0,0,0,0.2)`
+                        }}
+                      />
+                      <span style={{ 
+                        color: isDark ? "#D1D5DB" : "#4B5563", 
+                        fontWeight: 500,
+                        fontSize: "12px"
+                      }}>
+                        {entry.value}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
             )}
           />
           
@@ -151,7 +176,10 @@ export function EngagementChart({ data, className }: EngagementChartProps) {
             <div key={item.name} className="flex items-center gap-2">
               <div 
                 className="w-3 h-3 rounded-full" 
-                style={{ backgroundColor: colors.primary }}
+                style={{ 
+                  backgroundColor: colors.primary,
+                  boxShadow: isDark ? `0 0 6px ${colors.primary}` : `0 1px 3px rgba(0,0,0,0.2)`
+                }}
               />
               <span className="text-xs text-muted-foreground">{item.name}</span>
             </div>
