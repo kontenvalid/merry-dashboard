@@ -43,8 +43,12 @@ export async function GET() {
     const youtube = ytData.status === 'fulfilled' ? normalizeYoutubeData(ytData.value) : null
     const metaAds = adsData.status === 'fulfilled' ? adsData.value : null
 
-    console.log('[Overview] IG Data raw:', JSON.stringify(igData).substring(0, 500))
-    console.log('[Overview] IG normalized:', JSON.stringify(instagram))
+    // Debug log results
+    console.log('[Overview Debug] IG status:', igData.status)
+    if (igData.status === 'rejected') {
+      console.log('[Overview Debug] IG error:', igData.reason)
+    }
+    console.log('[Overview Debug] hasRealData:', !!facebook, !!instagram, !!youtube, !!metaAds)
 
     // Check if we got any real data
     const hasRealData = facebook || instagram || youtube || metaAds
@@ -208,7 +212,10 @@ function normalizeYoutubeData(data: any) {
 
 // Fetch data from Composio API
 async function fetchFromComposioAPI(apiKey: string | undefined, platform: string, param?: string) {
+  console.log(`[Composio API] Called for ${platform} with key:`, apiKey ? 'SET' : 'MISSING')
+  
   if (!apiKey) {
+    console.error(`[Composio API] No API key for ${platform}`)
     throw new Error('No API key')
   }
 
@@ -261,7 +268,7 @@ async function fetchFromComposioAPI(apiKey: string | undefined, platform: string
     }
 
     const data = await response.json()
-    console.log('[Composio] Raw response:', JSON.stringify(data).substring(0, 300))
+    console.log(`[Composio API] ${platform} response:`, JSON.stringify(data).substring(0, 200))
     return data.result || data
   } catch (error) {
     console.warn(`Failed to fetch ${platform} data from Composio:`, error)
