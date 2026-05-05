@@ -58,15 +58,20 @@ export function StatCard({
       <div className="flex items-start justify-between">
         <div className="space-y-2">
           <p className="text-sm font-medium text-muted-foreground">{title}</p>
-          <p className="text-3xl font-bold tracking-tight">{value}</p>
+          <p className="text-3xl font-bold tracking-tight text-foreground">{value}</p>
           {subtitle && (
             <p className="text-xs text-muted-foreground">{subtitle}</p>
           )}
           {trend && (
-            <div className={cn("flex items-center gap-1 text-xs font-medium", trend.isPositive ? "text-green-600" : "text-red-600")}>
+            <div className={cn(
+              "flex items-center gap-1 text-xs font-medium", 
+              trend.isPositive 
+                ? "text-green-600 dark:text-green-400" 
+                : "text-red-600 dark:text-red-400"
+            )}>
               <span>{trend.isPositive ? "↑" : "↓"}</span>
               <span>{Math.abs(trend.value)}%</span>
-              <span className="text-muted-foreground">vs last period</span>
+              <span className="text-muted-foreground dark:text-muted-foreground/80">vs last period</span>
             </div>
           )}
         </div>
