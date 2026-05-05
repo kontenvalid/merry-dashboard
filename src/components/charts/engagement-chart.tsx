@@ -100,17 +100,19 @@ export function EngagementChart({ data, className }: EngagementChartProps) {
               borderRadius: "12px",
               padding: "12px",
               boxShadow: isDark 
-                ? "0 4px 20px rgba(0,0,0,0.4)" 
+                ? "0 4px 20px rgba(0,0,0,0.5)" 
                 : "0 4px 12px rgba(0,0,0,0.1)",
             }}
             labelStyle={{
-              color: isDark ? "#F3F4F6" : "#374151",
+              color: isDark ? "#FFFFFF" : "#374151",
               fontWeight: 600,
               marginBottom: "8px"
             }}
             itemStyle={{
+              color: isDark ? "#F3F4F6" : "#374151",
               padding: "4px 0"
             }}
+            formatter={(value) => [typeof value === 'number' ? value.toLocaleString() : value, undefined]}
           />
           
           {/* Custom Legend with proper colors - visible in both modes */}
