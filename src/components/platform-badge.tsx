@@ -5,35 +5,21 @@ import { cn } from "@/lib/utils";
 import { chartColors } from "@/lib/chart-colors";
 
 interface PlatformBadgeProps {
-  platform: "facebook" | "instagram" | "youtube" | "meta_ads";
+  platform: string;
   className?: string;
 }
 
 export function PlatformBadge({ platform, className }: PlatformBadgeProps) {
-  const config = {
-    facebook: {
-      label: "Facebook",
-      bg: "bg-blue-600",
-      text: "text-white",
-    },
-    instagram: {
-      label: "Instagram",
-      bg: "bg-gradient-to-r from-purple-600 via-pink-500 to-orange-500",
-      text: "text-white",
-    },
-    youtube: {
-      label: "YouTube",
-      bg: "bg-red-600",
-      text: "text-white",
-    },
-    meta_ads: {
-      label: "Meta Ads",
-      bg: "bg-blue-700",
-      text: "text-white",
-    },
+  const config: Record<string, { label: string; bg: string; text: string }> = {
+    facebook: { label: "Facebook", bg: "bg-blue-600", text: "text-white" },
+    instagram: { label: "Instagram", bg: "bg-gradient-to-r from-purple-600 via-pink-500 to-orange-500", text: "text-white" },
+    youtube: { label: "YouTube", bg: "bg-red-600", text: "text-white" },
+    meta_ads: { label: "Meta Ads", bg: "bg-blue-700", text: "text-white" },
   };
 
-  const { label, bg, text } = config[platform];
+  const platformConfig = config[platform] || { label: platform, bg: "bg-gray-600", text: "text-white" };
+
+  const { label, bg, text } = platformConfig;
 
   return (
     <span className={cn("inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium", bg, text, className)}>

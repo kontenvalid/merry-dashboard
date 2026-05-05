@@ -274,16 +274,18 @@ export default function SocialPage() {
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {[
-              { id: "twitter", name: "Twitter/X", icon: "🐦", connected: false },
-              { id: "tiktok", name: "TikTok", icon: "🎵", connected: false },
-              { id: "linkedin", name: "LinkedIn", icon: "💼", connected: false },
+              { id: "twitter", name: "Twitter/X", color: "from-gray-600 to-gray-900", connected: false },
+              { id: "tiktok", name: "TikTok", color: "from-pink-500 to-cyan-400", connected: false },
+              { id: "linkedin", name: "LinkedIn", color: "from-blue-600 to-blue-800", connected: false },
             ].map((platform) => (
               <div
                 key={platform.id}
                 className="p-4 rounded-xl border border-dashed bg-muted/30 text-center"
               >
-                <div className="text-3xl mb-2">{platform.icon}</div>
-                <p className="font-medium">{platform.name}</p>
+                <div className={`w-12 h-12 rounded-full mx-auto mb-3 flex items-center justify-center bg-gradient-to-br ${platform.color}`}>
+                  <span className="w-3 h-3 rounded-full bg-white/80" />
+                </div>
+                <p className="font-medium text-foreground">{platform.name}</p>
                 <p className="text-sm text-muted-foreground mt-1">
                   {platform.connected ? "Connected" : "Not connected"}
                 </p>

@@ -1,26 +1,18 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import prisma from '@/lib/prisma'
 
-// Demo users storage (in production, use database)
+// Demo users fallback (when not connected to database)
 const demoUsers = [
   {
     id: '1',
     name: 'Satria Ady Chandra',
     email: 'kontenval.id@gmail.com',
     role: 'ADMIN',
-    status: 'ACTIVE',
+    status: 'active',
     createdAt: '2026-04-30',
-    lastLogin: '2026-05-03'
-  },
-  {
-    id: '2',
-    name: 'Demo User',
-    email: 'demo@example.com',
-    role: 'MEMBER',
-    status: 'ACTIVE',
-    createdAt: '2026-05-01',
-    lastLogin: '2026-05-02'
+    lastLogin: '2026-05-04'
   }
 ]
 
@@ -33,13 +25,54 @@ export async function GET() {
   }
 
   // Check if admin
-  if (session.user?.email !== 'kontenval.id@gmail.com') {
+  const isAdmin = session.user?.email === 'kontenval.id@gmail.com'
+  if (!isAdmin) {
     return NextResponse.json({ error: 'Forbidden - Admin only' }, { status: 403 })
   }
 
+  try {
+    // Try to fetch from Prisma database
+    const dbUsers = await prisma.user.findMany({
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        createdAt: true,
+      }
+    });
+
+    if (dbUsers && dbUsers.length > 0) {
+      const users = dbUsers.map(u => ({
+        id: u.id,
+        name: u.name || u.email,
+        email: u.email,
+        role: u.role || 'MEMBER',
+        status: 'active',
+        createdAt: u.createdAt?.toISOString() || new Date().toISOString(),
+        lastLogin: null
+      }));
+
+      return NextResponse.json({
+        success: true,
+        users,
+        source: 'database',
+        meta: {
+          total: users.length,
+          admins: users.filter(u => u.role === 'ADMIN').length,
+          members: users.filter(u => u.role === 'MEMBER').length
+        }
+      })
+    }
+  } catch (error) {
+    console.log('Database not available, using demo users')
+  }
+
+  // Fallback to demo users
   return NextResponse.json({
     success: true,
     users: demoUsers,
+    source: 'demo',
     meta: {
       total: demoUsers.length,
       admins: demoUsers.filter(u => u.role === 'ADMIN').length,
@@ -48,7 +81,7 @@ export async function GET() {
   })
 }
 
-// POST - Create new user
+// POST - Create new user (admin only)
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions)
   
@@ -68,33 +101,37 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
-    // Check if email already exists
-    if (demoUsers.some(u => u.email === email)) {
-      return NextResponse.json({ error: 'Email already exists' }, { status: 409 })
+    // Try to create in database
+    try {
+      const newUser = await prisma.user.create({
+        data: {
+          email,
+          name,
+          role: role.toUpperCase(),
+        }
+      });
+
+      return NextResponse.json({
+        success: true,
+        user: {
+          id: newUser.id,
+          name: newUser.name,
+          email: newUser.email,
+          role: newUser.role,
+          status: 'active',
+          createdAt: newUser.createdAt?.toISOString()
+        }
+      }, { status: 201 })
+    } catch {
+      // Database not available
+      return NextResponse.json({ error: 'Database not available' }, { status: 503 })
     }
-
-    const newUser = {
-      id: String(demoUsers.length + 1),
-      name,
-      email,
-      role: role.toUpperCase(),
-      status: 'ACTIVE',
-      createdAt: new Date().toISOString().split('T')[0],
-      lastLogin: 'Never'
-    }
-
-    demoUsers.push(newUser)
-
-    return NextResponse.json({
-      success: true,
-      user: newUser
-    }, { status: 201 })
   } catch {
     return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
   }
 }
 
-// PUT - Update user role
+// PUT - Update user role (admin only)
 export async function PUT(request: Request) {
   const session = await getServerSession(authOptions)
   
@@ -108,31 +145,32 @@ export async function PUT(request: Request) {
 
   try {
     const body = await request.json()
-    const { userId, role, status } = body
+    const { userId, role } = body
 
-    const userIndex = demoUsers.findIndex(u => u.id === userId)
-    if (userIndex === -1) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    try {
+      const updatedUser = await prisma.user.update({
+        where: { id: userId },
+        data: { role: role.toUpperCase() }
+      })
+
+      return NextResponse.json({
+        success: true,
+        user: {
+          id: updatedUser.id,
+          name: updatedUser.name,
+          email: updatedUser.email,
+          role: updatedUser.role
+        }
+      })
+    } catch {
+      return NextResponse.json({ error: 'Database not available or user not found' }, { status: 503 })
     }
-
-    // Prevent changing own role
-    if (userId === '1' && role !== 'ADMIN') {
-      return NextResponse.json({ error: 'Cannot change your own admin role' }, { status: 400 })
-    }
-
-    if (role) demoUsers[userIndex].role = role.toUpperCase()
-    if (status) demoUsers[userIndex].status = status.toUpperCase()
-
-    return NextResponse.json({
-      success: true,
-      user: demoUsers[userIndex]
-    })
   } catch {
     return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
   }
 }
 
-// DELETE - Remove user
+// DELETE - Remove user (admin only)
 export async function DELETE(request: Request) {
   const session = await getServerSession(authOptions)
   
@@ -151,20 +189,16 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ error: 'User ID required' }, { status: 400 })
   }
 
-  // Prevent deleting self
-  if (userId === '1') {
-    return NextResponse.json({ error: 'Cannot delete your own account' }, { status: 400 })
+  try {
+    await prisma.user.delete({
+      where: { id: userId }
+    })
+
+    return NextResponse.json({
+      success: true,
+      message: 'User deleted'
+    })
+  } catch {
+    return NextResponse.json({ error: 'Database not available or user not found' }, { status: 503 })
   }
-
-  const userIndex = demoUsers.findIndex(u => u.id === userId)
-  if (userIndex === -1) {
-    return NextResponse.json({ error: 'User not found' }, { status: 404 })
-  }
-
-  demoUsers.splice(userIndex, 1)
-
-  return NextResponse.json({
-    success: true,
-    message: 'User deleted'
-  })
 }

@@ -28,6 +28,14 @@ export default function SettingsPage() {
   const [consumerApiKey, setConsumerApiKey] = useState("")
   const [consumerApiKeySet, setConsumerApiKeySet] = useState(false)
   const [showApiKey, setShowApiKey] = useState(false)
+  
+  // Meta Access Token state
+  const [metaAccessToken, setMetaAccessToken] = useState("")
+  const [metaAccessTokenSet, setMetaAccessTokenSet] = useState(false)
+  const [showMetaToken, setShowMetaToken] = useState(false)
+  const [testingMetaToken, setTestingMetaToken] = useState(false)
+  const [metaTokenStatus, setMetaTokenStatus] = useState<{valid: boolean; expires_at?: string; error?: string} | null>(null)
+  
   const [mcpUrl, setMcpUrl] = useState<string | null>(null)
   const [mcpHeaders, setMcpHeaders] = useState<Record<string, string>>({})
   const [connectionResult, setConnectionResult] = useState<any>(null)
@@ -222,7 +230,6 @@ export default function SettingsPage() {
         setMcpHeaders(data.mcpHeaders || {});
         setSaved(true);
       } else if (data.fallback) {
-        // Manual setup required
         setError('Please setup MCP server manually at platform.composio.dev');
         setSaved(true);
       } else {
@@ -233,6 +240,55 @@ export default function SettingsPage() {
     } finally {
       setGeneratingMcp(false);
       setTimeout(() => setSaved(false), 3000);
+    }
+  };
+
+  // Test and Save Meta Access Token
+  const testMetaToken = async () => {
+    if (!metaAccessToken.trim()) {
+      setError("Please enter your Meta access token");
+      return;
+    }
+
+    try {
+      setTestingMetaToken(true);
+      setError("");
+
+      // Verify token with Meta/Facebook debug API
+      const debugRes = await fetch(
+        `https://graph.facebook.com/v18.0/debug_token?input_token=${metaAccessToken}&access_token=${metaAccessToken}`
+      );
+      const debugData = await debugRes.json();
+
+      if (debugData.data?.is_valid) {
+        // Token is valid - calculate expiry date
+        const expiresAt = debugData.data.expires_at;
+        const expiryDate = new Date(expiresAt * 1000).toLocaleDateString();
+        
+        setMetaTokenStatus({ valid: true, expires_at: expiryDate });
+        setMetaAccessTokenSet(true);
+        setSaved(true);
+        
+        // Save to server
+        await fetch('/api/settings', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ metaAccessToken: metaAccessToken.trim() })
+        });
+        
+        setTimeout(() => setSaved(false), 3000);
+      } else {
+        setMetaTokenStatus({ 
+          valid: false, 
+          error: debugData.error?.message || 'Token is invalid or expired' 
+        });
+        setError('Meta token is invalid or expired');
+      }
+    } catch (err) {
+      setMetaTokenStatus({ valid: false, error: 'Failed to verify token' });
+      setError('Failed to verify Meta token');
+    } finally {
+      setTestingMetaToken(false);
     }
   };
 
@@ -320,7 +376,7 @@ export default function SettingsPage() {
           {/* Composio API Key */}
           <Card className="border-blue-200 dark:border-blue-800">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
+              <CardTitle className="flex items-center gap-2 text-foreground">
                 <KeyRound className="w-5 h-5 text-blue-600" />
                 Composio Integration
               </CardTitle>
@@ -333,27 +389,33 @@ export default function SettingsPage() {
               
               {!consumerApiKeySet ? (
                 // Input mode - user enters API key
-                <div className="space-y-3">
-                  <div className="relative">
-                    <Input
-                      type={showApiKey ? "text" : "password"}
-                      placeholder="Enter your x-consumer-api-key"
-                      value={consumerApiKey}
-                      onChange={(e) => setConsumerApiKey(e.target.value)}
-                      className="pr-10 font-mono text-sm"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowApiKey(!showApiKey)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                    >
-                      {showApiKey ? (
-                        <EyeOff className="w-4 h-4" />
-                      ) : (
-                        <Eye className="w-4 h-4" />
-                      )}
-                    </button>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-foreground">
+                      Consumer API Key
+                    </label>
+                    <div className="relative">
+                      <Input
+                        type={showApiKey ? "text" : "password"}
+                        placeholder="Enter your x-consumer-api-key"
+                        value={consumerApiKey}
+                        onChange={(e) => setConsumerApiKey(e.target.value)}
+                        className="pr-10 font-mono text-sm"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowApiKey(!showApiKey)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      >
+                        {showApiKey ? (
+                          <EyeOff className="w-4 h-4" />
+                        ) : (
+                          <Eye className="w-4 h-4" />
+                        )}
+                      </button>
+                    </div>
                   </div>
+                  
                   <Button 
                     onClick={connectToComposio}
                     disabled={connecting || !consumerApiKey.trim()}
@@ -369,23 +431,29 @@ export default function SettingsPage() {
               ) : (
                 // Connected mode - show status, MCP URL and headers
                 <div className="space-y-4">
-                  <div className="flex items-center gap-2 text-green-600 text-sm">
+                  <div className="flex items-center gap-2 text-green-600 dark:text-green-400 text-sm">
                     <CheckCircle className="w-4 h-4" />
-                    <span>Consumer API Key configured</span>
+                    <span className="text-foreground">Consumer API Key configured</span>
                   </div>
                   
                   <div className="p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-xs text-muted-foreground">Status:</span>
-                      <Badge variant="success" className="text-xs">Connected</Badge>
+                      <Badge variant="success" className="text-xs bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">Connected</Badge>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-muted-foreground">Sync:</span>
-                      <span className="text-xs">{getSyncIntervalText(syncSettings.syncInterval)}</span>
+                      <span className="text-xs text-muted-foreground">Sync Interval:</span>
+                      <span className="text-xs font-medium text-green-600 dark:text-green-400">{getSyncIntervalText(syncSettings.syncInterval)}</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-xs text-muted-foreground">Auto Sync:</span>
-                      <span className="text-xs">{syncSettings.autoSync ? 'Enabled' : 'Disabled'}</span>
+                      <span className={`text-xs font-medium ${syncSettings.autoSync ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                        {syncSettings.autoSync ? 'ON' : 'OFF'}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">Composio Status:</span>
+                      <span className="text-xs font-medium text-green-600 dark:text-green-400">● Active</span>
                     </div>
                   </div>
                   
@@ -478,38 +546,141 @@ export default function SettingsPage() {
                 </div>
               </div>
 
+              {/* Meta Access Token */}
+              <Card className="border-purple-200 dark:border-purple-800">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-foreground">
+                    <Key className="w-5 h-5 text-purple-600" />
+                    Meta Ads Access Token (Direct Graph API)
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-sm text-muted-foreground">
+                    Enter your Meta (Facebook) User Access Token to fetch real ad data. 
+                    Get a long-lived token (60 days) from Graph API Explorer.
+                  </p>
+                  
+                  <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 space-y-2">
+                    <p className="text-sm font-medium text-blue-700 dark:text-blue-300">How to get your token:</p>
+                    <ol className="text-xs text-blue-600 dark:text-blue-400 space-y-1 list-decimal list-inside">
+                      <li>Go to <a href="https://developers.facebook.com/tools/explorer/" target="_blank" className="underline">Graph API Explorer</a></li>
+                      <li>Select app "Merry App" and generate token</li>
+                      <li>Add permissions: ads_management, ads_read, pages_read_engagement</li>
+                      <li>Exchange short-lived token to long-lived</li>
+                      <li>Copy and paste the long-lived token below</li>
+                    </ol>
+                    <p className="text-xs text-blue-500 mt-2">
+                      Your token: EAAYO8KU9nKg...ZDZD (59 days remaining)
+                    </p>
+                  </div>
+                  
+                  <div className="relative">
+                    <Input
+                      type={showMetaToken ? "text" : "password"}
+                      placeholder="Paste your long-lived Meta access token here"
+                      value={metaAccessToken}
+                      onChange={(e) => setMetaAccessToken(e.target.value)}
+                      className="pr-10 font-mono text-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowMetaToken(!showMetaToken)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {showMetaToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  
+                  <div className="flex gap-2">
+                    <Button 
+                      onClick={testMetaToken}
+                      disabled={testingMetaToken || !metaAccessToken.trim()}
+                      variant="outline"
+                    >
+                      {testingMetaToken ? 'Testing...' : 'Test & Save Token'}
+                    </Button>
+                  </div>
+                  
+                  {/* Token Status */}
+                  {metaTokenStatus && (
+                    <div className={`p-3 rounded-lg ${metaTokenStatus.valid ? 'bg-green-50 dark:bg-green-900/20 border border-green-200' : 'bg-red-50 dark:bg-red-900/20 border border-red-200'}`}>
+                      {metaTokenStatus.valid ? (
+                        <div className="flex items-center gap-2 text-green-600 text-sm">
+                          <CheckCircle className="w-4 h-4" />
+                          <span>Token valid! Expires: {metaTokenStatus.expires_at}</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2 text-red-600 text-sm">
+                          <AlertCircle className="w-4 h-4" />
+                          <span>{metaTokenStatus.error || 'Invalid token'}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* Current token status */}
+                  {metaAccessTokenSet && !metaAccessToken && (
+                    <div className="flex items-center gap-2 text-green-600 text-sm">
+                      <CheckCircle className="w-4 h-4" />
+                      <span>Meta token configured</span>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
               {/* Connected Platforms Status */}
               <div className="pt-4 border-t space-y-3">
-                <p className="font-medium text-sm">Connected Platforms</p>
+                <p className="font-medium text-sm text-foreground">Connected Platforms</p>
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="flex items-center justify-between p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+                  {/* Facebook - Blue */}
+                  <div className="flex items-center justify-between p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
                     <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full bg-green-500" />
-                      <span className="text-sm">Facebook</span>
+                      <div className="w-3 h-3 rounded-full bg-blue-600" />
+                      <span className="text-sm text-blue-700 dark:text-blue-300">Facebook</span>
                     </div>
                     <Badge variant="success" className="text-xs">Active</Badge>
                   </div>
-                  <div className="flex items-center justify-between p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+                  {/* Instagram - Pink gradient */}
+                  <div className="flex items-center justify-between p-3 rounded-lg bg-pink-50 dark:bg-pink-900/20 border border-pink-200 dark:border-pink-800">
                     <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full bg-green-500" />
-                      <span className="text-sm">Instagram</span>
+                      <div className="w-3 h-3 rounded-full bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500" />
+                      <span className="text-sm text-pink-700 dark:text-pink-300">Instagram</span>
                     </div>
                     <Badge variant="success" className="text-xs">Active</Badge>
                   </div>
-                  <div className="flex items-center justify-between p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+                  {/* YouTube - Red */}
+                  <div className="flex items-center justify-between p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
                     <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full bg-green-500" />
-                      <span className="text-sm">YouTube</span>
+                      <div className="w-3 h-3 rounded-full bg-red-600" />
+                      <span className="text-sm text-red-700 dark:text-red-300">YouTube</span>
                     </div>
                     <Badge variant="success" className="text-xs">Active</Badge>
                   </div>
-                  <div className="flex items-center justify-between p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+                  {/* Meta Ads via Graph API - Purple */}
+                  <div className="flex items-center justify-between p-3 rounded-lg bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full bg-purple-500" />
+                      <span className="text-sm text-purple-700 dark:text-purple-300">Meta Ads (Graph API)</span>
+                    </div>
+                    <Badge variant="success" className="text-xs">Direct</Badge>
+                  </div>
+                  {/* Meta Ads via Composio - Amber */}
+                  <div className="flex items-center justify-between p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 col-span-2">
                     <div className="flex items-center gap-2">
                       <div className="w-3 h-3 rounded-full bg-amber-500" />
-                      <span className="text-sm">Meta Ads</span>
+                      <span className="text-sm text-amber-700 dark:text-amber-300">Meta Ads (Composio)</span>
                     </div>
                     <Badge variant="warning" className="text-xs">Reconnect</Badge>
                   </div>
+                </div>
+                
+                {/* Connection Info */}
+                <div className="bg-muted/30 dark:bg-muted/10 rounded-lg p-3 text-xs text-muted-foreground">
+                  <p className="font-medium text-foreground mb-1">Connection Methods:</p>
+                  <ul className="space-y-1">
+                    <li><span className="text-purple-600">●</span> <strong>Graph API Direct:</strong> User token (59 days) → real-time data</li>
+                    <li><span className="text-amber-600">●</span> <strong>Composio:</strong> Via app.composio.dev integration</li>
+                  </ul>
                 </div>
               </div>
 
@@ -527,7 +698,7 @@ export default function SettingsPage() {
                   <div className="space-y-2 text-sm">
                     <p className="font-medium">Option 1: Exchange for Long-Lived Token (Recommended)</p>
                     <ol className="list-decimal list-inside space-y-1 text-muted-foreground ml-2">
-                      <li>Go to <a href="https://business.facebook.com" target="_blank" className="text-blue-600 hover:underline">business.facebook.com</a></li>
+                      <li>Go to <a href="https://business.facebook.com" target="_blank" className="text-blue-600 dark:text-blue-400 hover:underline">business.facebook.com</a></li>
                       <li>Navigate to Settings → Business Settings</li>
                       <li>Select your app under Users → Assets</li>
                       <li>Click "Generate Token" for your ad account</li>
@@ -541,18 +712,21 @@ export default function SettingsPage() {
                       Composio handles token refresh automatically if you have a paid plan.
                     </p>
                     <a 
-                      href="https://app.composio.dev/user/integrations/metas-ads" 
+                      href="https://dashboard.composio.dev/YOUR_WORKSPACE/~/connect/apps/metaads" 
                       target="_blank"
                       rel="noopener noreferrer"
                       className="mt-2 inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
                     >
                       Open Composio Meta Ads <ExternalLink className="w-3 h-3" />
                     </a>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Replace YOUR_WORKSPACE with your Composio workspace name
+                    </p>
                   </div>
                   <div className="mt-4 pt-3 border-t border-amber-200 dark:border-amber-700">
                     <p className="font-medium text-sm mb-2">Option 3: Permanent System User Token</p>
                     <p className="text-xs text-muted-foreground">
-                      For production, create a Facebook System User with permanent access to ad accounts. 
+                      For production, create a Meta System User with permanent access to ad accounts. 
                       This doesn't expire but requires Business Verification.
                     </p>
                   </div>

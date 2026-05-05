@@ -1,286 +1,263 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
+import { Loader2 } from "lucide-react";
 import { 
   Users, Search, Plus, MoreVertical,
   Mail, Shield, Clock, Edit2, Trash2,
-  CheckCircle, XCircle
+  CheckCircle, XCircle, RefreshCw
 } from "lucide-react";
 
-const mockUsers = [
-  {
-    id: "1",
-    name: "Satria Ady Chandra",
-    email: "kontenval.id@gmail.com",
-    role: "admin",
-    image: null,
-    status: "active",
-    lastLogin: "2026-05-03 09:00",
-    createdAt: "2026-04-30",
-  },
-  {
-    id: "2",
-    name: "John Doe",
-    email: "john.doe@example.com",
-    role: "member",
-    image: null,
-    status: "active",
-    lastLogin: "2026-05-02 14:30",
-    createdAt: "2026-05-01",
-  },
-  {
-    id: "3",
-    name: "Jane Smith",
-    email: "jane.smith@example.com",
-    role: "member",
-    image: null,
-    status: "inactive",
-    lastLogin: "2026-04-28 10:00",
-    createdAt: "2026-05-02",
-  },
-];
+interface User {
+  id: string;
+  name: string;
+  email: string;
+  role: "ADMIN" | "MEMBER";
+  image?: string;
+  status: "active" | "inactive";
+  lastLogin?: string;
+  createdAt: string;
+}
 
 export default function UsersPage() {
-  const [users, setUsers] = useState(mockUsers);
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filterRole, setFilterRole] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
   const [showModal, setShowModal] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Fetch real users from database
+  const fetchUsers = async () => {
+    try {
+      setRefreshing(true);
+      const response = await fetch('/api/users');
+      if (response.ok) {
+        const data = await response.json();
+        setUsers(data.users || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch users:', error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchUsers();
+  }, []);
 
   const filteredUsers = users.filter((user) => {
     const matchesSearch = 
       user.name.toLowerCase().includes(search.toLowerCase()) ||
       user.email.toLowerCase().includes(search.toLowerCase());
-    const matchesRole = filterRole === "all" || user.role === filterRole;
+    const matchesRole = filterRole === "all" || user.role.toLowerCase() === filterRole;
     const matchesStatus = filterStatus === "all" || user.status === filterStatus;
     return matchesSearch && matchesRole && matchesStatus;
   });
 
-  const adminCount = users.filter(u => u.role === "admin").length;
-  const memberCount = users.filter(u => u.role === "member").length;
+  const adminCount = users.filter(u => u.role === "ADMIN").length;
+  const memberCount = users.filter(u => u.role === "MEMBER").length;
   const activeCount = users.filter(u => u.status === "active").length;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">User Management</h1>
+          <h1 className="text-3xl font-bold text-foreground">User Management</h1>
           <p className="text-muted-foreground mt-1">
             Manage dashboard users and roles
           </p>
         </div>
-        <Button onClick={() => setShowModal(true)}>
-          <Plus className="w-4 h-4 mr-2" />
-          Add User
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button 
+            variant="outline" 
+            onClick={fetchUsers}
+            disabled={refreshing}
+          >
+            <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+          <Button onClick={() => setShowModal(true)}>
+            <Plus className="w-4 h-4 mr-2" />
+            Add User
+          </Button>
+        </div>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-        <Card className="p-6">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-              <Users className="w-6 h-6 text-blue-600" />
-            </div>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <Card>
+          <CardContent className="flex items-center justify-between p-4">
             <div>
-              <p className="text-2xl font-bold">{users.length}</p>
               <p className="text-sm text-muted-foreground">Total Users</p>
+              <p className="text-2xl font-bold">{users.length}</p>
             </div>
-          </div>
+            <Users className="w-8 h-8 text-blue-600" />
+          </CardContent>
         </Card>
-        <Card className="p-6">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-lg bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
-              <Shield className="w-6 h-6 text-red-600" />
-            </div>
+        <Card>
+          <CardContent className="flex items-center justify-between p-4">
             <div>
-              <p className="text-2xl font-bold">{adminCount}</p>
               <p className="text-sm text-muted-foreground">Admins</p>
+              <p className="text-2xl font-bold">{adminCount}</p>
             </div>
-          </div>
+            <Shield className="w-8 h-8 text-purple-600" />
+          </CardContent>
         </Card>
-        <Card className="p-6">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-              <CheckCircle className="w-6 h-6 text-green-600" />
-            </div>
+        <Card>
+          <CardContent className="flex items-center justify-between p-4">
             <div>
+              <p className="text-sm text-muted-foreground">Active Users</p>
               <p className="text-2xl font-bold">{activeCount}</p>
-              <p className="text-sm text-muted-foreground">Active</p>
             </div>
-          </div>
-        </Card>
-        <Card className="p-6">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-lg bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
-              <Clock className="w-6 h-6 text-purple-600" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold">{users.length - activeCount}</p>
-              <p className="text-sm text-muted-foreground">Inactive</p>
-            </div>
-          </div>
+            <CheckCircle className="w-8 h-8 text-green-600" />
+          </CardContent>
         </Card>
       </div>
 
       {/* Filters */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                placeholder="Search users..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-            <select
-              value={filterRole}
-              onChange={(e) => setFilterRole(e.target.value)}
-              className="px-3 py-2 rounded-lg border bg-background"
-            >
-              <option value="all">All Roles</option>
-              <option value="admin">Admin</option>
-              <option value="member">Member</option>
-            </select>
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="px-3 py-2 rounded-lg border bg-background"
-            >
-              <option value="all">All Status</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-            </select>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Users List */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <span>Users ({filteredUsers.length})</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            {filteredUsers.map((user) => (
-              <div
-                key={user.id}
-                className="flex items-center justify-between p-4 rounded-lg border hover:bg-accent/50 transition-colors"
-              >
-                <div className="flex items-center gap-4">
-                  <Avatar 
-                    src={user.image || ""}
-                    fallback={user.name.charAt(0)}
-                    size="lg"
-                  />
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <p className="font-semibold">{user.name}</p>
-                      {user.role === "admin" && (
-                        <Badge variant="destructive" className="text-xs">Admin</Badge>
-                      )}
-                      <Badge 
-                        variant={user.status === "active" ? "success" : "secondary"}
-                        className="text-xs"
-                      >
-                        {user.status === "active" ? (
-                          <CheckCircle className="w-3 h-3 mr-1" />
-                        ) : (
-                          <XCircle className="w-3 h-3 mr-1" />
-                        )}
-                        {user.status}
-                      </Badge>
-                    </div>
-                    <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
-                      <span className="flex items-center gap-1">
-                        <Mail className="w-3 h-3" />
-                        {user.email}
-                      </span>
-                      <span>•</span>
-                      <span>Last login: {user.lastLogin}</span>
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <select
-                    value={user.role}
-                    onChange={(e) => {
-                      setUsers(users.map(u => 
-                        u.id === user.id ? { ...u, role: e.target.value } : u
-                      ));
-                    }}
-                    className="px-2 py-1 rounded border bg-background text-sm"
-                  >
-                    <option value="admin">Admin</option>
-                    <option value="member">Member</option>
-                  </select>
-                  <Button variant="ghost" size="sm">
-                    <Edit2 className="w-4 h-4" />
-                  </Button>
-                  {user.id !== "1" && (
-                    <Button variant="ghost" size="sm">
-                      <Trash2 className="w-4 h-4 text-red-500" />
-                    </Button>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {filteredUsers.length === 0 && (
-            <div className="text-center py-12">
-              <Users className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-              <p className="text-muted-foreground">No users found</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Add User Modal Placeholder */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <Card className="w-full max-w-md mx-4">
-            <CardHeader>
-              <CardTitle className="flex items-center justify-between">
-                Add New User
-                <Button variant="ghost" size="sm" onClick={() => setShowModal(false)}>
-                  <XCircle className="w-4 h-4" />
-                </Button>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <label className="text-sm font-medium mb-2 block">Email</label>
-                <Input type="email" placeholder="user@example.com" />
-              </div>
-              <div>
-                <label className="text-sm font-medium mb-2 block">Role</label>
-                <select className="w-full p-2 rounded-lg border bg-background">
-                  <option value="member">Member</option>
-                  <option value="admin">Admin</option>
-                </select>
-              </div>
-              <div className="flex justify-end gap-2 pt-4">
-                <Button variant="outline" onClick={() => setShowModal(false)}>
-                  Cancel
-                </Button>
-                <Button>Add User</Button>
-              </div>
-            </CardContent>
-          </Card>
+      <div className="flex flex-col sm:flex-row gap-4">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            placeholder="Search users..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-10"
+          />
         </div>
-      )}
+        <select
+          value={filterRole}
+          onChange={(e) => setFilterRole(e.target.value)}
+          className="px-3 py-2 rounded-lg border bg-background text-foreground"
+        >
+          <option value="all">All Roles</option>
+          <option value="admin">Admin</option>
+          <option value="member">Member</option>
+        </select>
+        <select
+          value={filterStatus}
+          onChange={(e) => setFilterStatus(e.target.value)}
+          className="px-3 py-2 rounded-lg border bg-background text-foreground"
+        >
+          <option value="all">All Status</option>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+        </select>
+      </div>
+
+      {/* Users Table */}
+      <Card>
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="border-b bg-muted/50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">User</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">Role</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">Status</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">Last Login</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">Created</th>
+                  <th className="px-4 py-3 text-right text-sm font-medium text-muted-foreground">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {filteredUsers.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
+                      No users found
+                    </td>
+                  </tr>
+                ) : (
+                  filteredUsers.map((user) => (
+                    <tr key={user.id} className="hover:bg-muted/50">
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          <Avatar 
+                            fallback={user.name.charAt(0)} 
+                            src={user.image}
+                          />
+                          <div>
+                            <p className="font-medium text-foreground">{user.name}</p>
+                            <p className="text-sm text-muted-foreground">{user.email}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <Badge variant={user.role === "ADMIN" ? "destructive" : "secondary"}>
+                          {user.role === "ADMIN" ? "Admin" : "Member"}
+                        </Badge>
+                      </td>
+                      <td className="px-4 py-3">
+                        {user.status === "active" ? (
+                          <span className="inline-flex items-center gap-1 text-green-600">
+                            <CheckCircle className="w-4 h-4" />
+                            Active
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-muted-foreground">
+                            <XCircle className="w-4 h-4" />
+                            Inactive
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-muted-foreground">
+                        {user.lastLogin ? new Date(user.lastLogin).toLocaleDateString() : 'Never'}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-muted-foreground">
+                        {new Date(user.createdAt).toLocaleDateString()}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <Button variant="ghost" size="sm">
+                          <Edit2 className="w-4 h-4" />
+                        </Button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* User List Summary */}
+      <Card className="bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
+        <CardContent className="p-4">
+          <div className="flex items-start gap-3">
+            <Mail className="w-5 h-5 text-blue-600 mt-0.5" />
+            <div>
+              <p className="font-medium text-blue-700 dark:text-blue-300">User Management</p>
+              <p className="text-sm text-blue-600 dark:text-blue-400 mt-1">
+                Users are managed through Google OAuth login. When a user signs in for the first time, 
+                they are automatically added to the system with a default role of "Member".
+                Only the first admin user (kontenval.id@gmail.com) has full admin privileges.
+              </p>
+              <div className="flex gap-4 mt-3 text-sm">
+                <span>• {adminCount} Admin(s)</span>
+                <span>• {memberCount} Member(s)</span>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
