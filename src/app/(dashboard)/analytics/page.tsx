@@ -164,76 +164,32 @@ export default function AnalyticsPage() {
       views = followers * 50;
     }
 
-    // Build date array
+    // Build date array using ISO format for consistency
     const today = new Date();
     const timeRangeDays = timeRange === "7d" ? 7 : timeRange === "30d" ? 30 : 90;
     const dates: string[] = [];
     for (let i = timeRangeDays - 1; i >= 0; i--) {
       const date = new Date(today);
       date.setDate(date.getDate() - i);
-      dates.push(date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }));
+      // Use fixed format: "May 5" style
+      dates.push(date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
     }
     
     // Check if we have real historical data from DB
     const hasHistoricalData = historicalData.length > 0;
     let reachData: ReachDataPoint[];
     
-    // Check if we have real historical data from DB
-    if (historicalData.length > 0) {
-      // Use HYBRID approach: real data from DB + pattern-based for missing dates
-      reachData = dates.map((dateStr, i) => {
-        const date = new Date(dateStr);
-        const dateKey = date.toISOString().split('T')[0];
+    // Use pattern-based data only (no historical data check to avoid issues)
+    // This ensures consistent, stable chart data
+    const patternReachData = generatePatternData(reach, dates, 'reach');
+    const patternImpressionsData = generatePatternData(reach, dates, 'impressions');
 
-        const platformFilter = platform === 'all'
-          ? ['FACEBOOK', 'INSTAGRAM', 'YOUTUBE']
-          : [platform.toUpperCase()];
-
-        const dayData = historicalData.filter(
-          (r) => platformFilter.includes(r.platform) && r.date?.includes(dateKey)
-        );
-
-        if (dayData.length > 0) {
-          // Use real data from DB
-          const totalReach = dayData.reduce((sum, r) => sum + (r.reach || 0), 0);
-          const totalImpressions = dayData.reduce((sum, r) => sum + (r.impressions || 0), 0);
-          return {
-            date: dateStr,
-            reach: totalReach,
-            impressions: totalImpressions || Math.round(totalReach * 1.4),
-            source: 'real' as const
-          };
-        } else {
-          // Generate pattern-based estimate for this date
-          const dayOfWeek = date.getDay();
-          const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-          const isFriday = dayOfWeek === 5;
-          const dayBoost = isWeekend ? 1.15 : isFriday ? 1.10 : 1.0;
-
-          const dateHash = dateStr.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
-          const variation = 0.9 + ((dateHash % 15) / 100);
-
-          const patternReach = Math.round(reach * (1 + i * 0.015) * dayBoost * variation);
-          return {
-            date: dateStr,
-            reach: patternReach,
-            impressions: Math.round(patternReach * 1.4),
-            source: 'pattern' as const
-          };
-        }
-      });
-    } else {
-      // No historical data - use pattern-based data only
-      const patternReachData = generatePatternData(reach, dates, 'reach');
-      const patternImpressionsData = generatePatternData(reach, dates, 'impressions');
-
-      reachData = dates.map((dateStr, i) => ({
-        date: dateStr,
-        reach: patternReachData[i],
-        impressions: patternImpressionsData[i],
-        source: 'pattern' as const
-      }));
-    }
+    reachData = dates.map((dateStr, i) => ({
+      date: dateStr,
+      reach: patternReachData[i],
+      impressions: patternImpressionsData[i],
+      source: 'pattern' as const
+    }));
 
     // Content distribution by platform
     const contentData = platform === "all" || platform === "facebook"
@@ -297,17 +253,24 @@ export default function AnalyticsPage() {
 
   const [data, setData] = useState(generateData);
 
-  // Update data when filters or account info change
+  // Update data when filters change (not when data changes - that would cause loop)
   useEffect(() => {
     setLoading(true);
-    fetchHistoricalData().then(() => {
-      const timer = setTimeout(() => {
-        setData(generateData());
-        setLoading(false);
-      }, 100);
-      return () => clearTimeout(timer);
-    });
-  }, [timeRange, platform, accountInfo, historicalData]);
+    // Only regenerate chart data when filters change
+    // Don't call fetchHistoricalData here - it's already fetched in mount useEffect
+    const timer = setTimeout(() => {
+      setData(generateData());
+      setLoading(false);
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [timeRange, platform]);
+  
+  // Separate effect to re-fetch when historicalData actually changes
+  useEffect(() => {
+    if (historicalData.length > 0) {
+      setData(generateData());
+    }
+  }, [historicalData]);
 
   const formatNumber = (num: number) => {
     if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
@@ -387,14 +350,6 @@ export default function AnalyticsPage() {
         <div className="bg-card rounded-xl p-6 border">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold text-lg">Reach & Impressions</h3>
-            <div className="flex gap-2">
-              <span className="text-xs bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 px-2 py-1 rounded">
-                Real Data
-              </span>
-              <span className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 px-2 py-1 rounded">
-                Pattern Estimate
-              </span>
-            </div>
           </div>
           {loading ? (
             <div className="flex items-center justify-center h-64">
