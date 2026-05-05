@@ -90,7 +90,7 @@ export default function DashboardPage() {
             const { facebook, instagram, youtube } = data.data;
             
             const fbCount = facebook?.followers || 6;
-            const igCount = instagram?.followers || 0;
+            const igCount = instagram?.followers_count || 0;
             const ytCount = youtube?.subscribers || 11;
             const totalFollowers = fbCount + igCount + ytCount;
             
