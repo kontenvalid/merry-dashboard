@@ -139,16 +139,24 @@ export default function DashboardPage() {
               ? ((totalEngagement / totalFollowers) * 100).toFixed(1)
               : "0";
             
-            // Calculate total ad spend (prefer IDR)
-            const idrSpend = metaAds?.totalSpend?.IDR || 0;
-            const usdSpend = metaAds?.totalSpend?.USD || 0;
+            // Calculate total ad spend (always in IDR for consistency)
+            // Fetch ads summary from metaads API
+            const adsResponse = await fetch('/api/composio/metaads');
+            let adsSummary = { totalSpend: 0, isDemo: true };
+            if (adsResponse.ok) {
+              const adsData = await adsResponse.json();
+              adsSummary = adsData.summary || adsSummary;
+            }
+            
+            const totalSpend = adsSummary.totalSpend || 0;
+            const adSpendCurrency = 'IDR';
             
             setStats({
               totalFollowers,
               totalReach,
               engagementRate: parseFloat(engagementRate),
-              adSpend: idrSpend > 0 ? idrSpend : (usdSpend * 15000),
-              adSpendCurrency: idrSpend > 0 ? 'IDR' : 'USD'
+              adSpend: totalSpend,
+              adSpendCurrency: adSpendCurrency
             });
 
             // Generate dates for last 7 days
