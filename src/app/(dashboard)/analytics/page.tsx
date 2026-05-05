@@ -395,13 +395,13 @@ export default function AnalyticsPage() {
           </div>
           <div className="space-y-4">
             {data.breakdown.map((item) => (
-              <div key={item.platform} className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-900 rounded-lg">
+              <div key={item.platform} className="flex items-center justify-between p-4 bg-secondary dark:bg-secondary/50 rounded-lg border border-transparent dark:border-border/50">
                 <div className="flex items-center gap-3">
                   <PlatformBadge platform={item.color} />
-                  <span className="font-medium">{item.platform}</span>
+                  <span className="font-medium text-foreground">{item.platform}</span>
                 </div>
                 <div className="text-right">
-                  <p className="font-semibold">{item.followers} followers</p>
+                  <p className="font-semibold text-foreground">{item.followers} followers</p>
                   <p className="text-sm text-muted-foreground">Reach: {item.reach}</p>
                 </div>
               </div>
