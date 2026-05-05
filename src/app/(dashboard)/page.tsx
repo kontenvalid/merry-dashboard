@@ -239,7 +239,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              <p className="text-2xl font-bold">{data?.instagram?.followersCount || 0}</p>
+              <p className="text-2xl font-bold">{data?.instagram?.followers_count || 0}</p>
               <p className="text-sm text-muted-foreground">Followers</p>
               <div className="flex gap-2 pt-2">
                 <Badge variant="outline" className="text-xs">

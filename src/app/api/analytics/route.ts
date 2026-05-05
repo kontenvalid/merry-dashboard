@@ -71,7 +71,7 @@ export async function POST(request: Request) {
           }
         },
         update: {
-          followers: data.instagram.followers || 0,
+          followers: data.instagram.followers_count || 0,
           reach: data.instagram.posts?.reach || 0,
           impressions: data.instagram.posts?.impressions || 0,
           engagement: (data.instagram.engagement?.likes || 0) + 
@@ -80,7 +80,7 @@ export async function POST(request: Request) {
         create: {
           platform: 'INSTAGRAM',
           date: today,
-          followers: data.instagram.followers || 0,
+          followers: data.instagram.followers_count || 0,
           reach: data.instagram.posts?.reach || 0,
           impressions: data.instagram.posts?.impressions || 0,
           engagement: (data.instagram.engagement?.likes || 0) + 

@@ -85,7 +85,7 @@ export default function AnalyticsPage() {
             instagram: {
               name: d.instagram?.fullName || d.instagram?.username || 'kontenval.id',
               id: d.instagram?.username ? `@${d.instagram.username}` : '@kontenval.id',
-              followers: d.instagram?.followers || 0,
+              followers: d.instagram?.followers_count || 0,
             },
             youtube: {
               name: d.youtube?.channelName || 'kontenval id',
