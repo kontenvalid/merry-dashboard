@@ -59,19 +59,14 @@ export default function DashboardPage() {
     }
   }, [status, router]);
 
-  // Generate pattern-based data for realistic variation
-  const generatePatternData = (baseCounts: { fb: number; ig: number; yt: number }, days: string[]) => {
-    return days.map((dateStr, i) => {
-      const dayOfWeek = new Date(dateStr).getDay();
-      const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-      const growthFactor = 1 + (i * 0.02);
-      const variation = 0.95 + Math.random() * 0.1;
-      
+  // Generate stable follower data (no random, no growth - base value only)
+  const generateStableFollowerData = (baseCounts: { fb: number; ig: number; yt: number }, days: string[]) => {
+    return days.map((dateStr) => {
       return {
         date: dateStr,
-        facebook: Math.round(baseCounts.fb * growthFactor * (isWeekend ? 1.02 : 1) * variation),
-        instagram: Math.round(baseCounts.ig * growthFactor * (isWeekend ? 1.05 : 1) * variation),
-        youtube: Math.round(baseCounts.yt * growthFactor * (isWeekend ? 1.03 : 1) * variation)
+        facebook: baseCounts.fb,
+        instagram: baseCounts.ig,
+        youtube: baseCounts.yt
       };
     });
   };
@@ -164,7 +159,7 @@ export default function DashboardPage() {
               setFollowerData(formattedData);
             } else {
               const baseCounts = { fb: fbCount, ig: igCount, yt: ytCount };
-              setFollowerData(generatePatternData(baseCounts, last7Days));
+              setFollowerData(generateStableFollowerData(baseCounts, last7Days));
             }
             
             setEngagementData([
