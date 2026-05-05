@@ -21,7 +21,7 @@ export const FB_FOLLOWERS_COUNT = 6
 
 interface OverviewData {
   facebook: { connected: boolean; pages: any[] };
-  instagram: { connected: boolean; username: string; followersCount: number; postsCount?: number };
+  instagram: { connected: boolean; username: string; followers_count: number; postsCount?: number };
   youtube: { connected: boolean; title: string; subscriberCount: number; videoCount: number };
   metaAds: { connected: boolean; summary?: any };
   googleDrive: { connected: boolean; files: any[] };

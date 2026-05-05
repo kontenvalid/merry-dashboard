@@ -102,9 +102,9 @@ export async function GET() {
           connected: true,
           username: 'kontenval.id',
           fullName: 'kontenval.id',
-          followers: instagram?.followers_count || 0,
-          followers_count: instagram?.followers_count || 0,
-          mediaCount: instagram?.media_count || 7,
+          followers: (igData.status === 'fulfilled' ? igData.value?.followers_count : null) || 0,
+          followers_count: (igData.status === 'fulfilled' ? igData.value?.followers_count : null) || 0,
+          mediaCount: (igData.status === 'fulfilled' ? igData.value?.media_count : null) || 7,
           engagement: { likes: 0, comments: 0, saves: 0 },
           posts: { reach: 0, impressions: 0 },
           link: 'https://instagram.com/kontenval.id'
