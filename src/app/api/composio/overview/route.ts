@@ -171,16 +171,20 @@ function normalizeFacebookData(data: any) {
 // Normalize Instagram data from Composio
 function normalizeInstagramData(data: any) {
   if (!data) return null
-  console.log('[normalizeInstagramData] Input:', JSON.stringify(data).substring(0, 300))
+  
+  // Handle nested response structure from Composio
+  const rawData = data.data || data
+  
+  console.log('[normalizeInstagramData] Processing:', JSON.stringify(rawData).substring(0, 300))
   return {
     connected: true,
-    username: data.username || 'kontenval.id',
-    fullName: data.name || data.full_name || 'kontenval.id',
-    followers_count: data.followers_count || 0,
-    followers: data.followers_count || 0,
-    media_count: data.media_count || 0,
-    mediaCount: data.media_count || 0,
-    id: data.id,
+    username: rawData.username || 'kontenval.id',
+    fullName: rawData.name || rawData.full_name || 'kontenval.id',
+    followers_count: rawData.followers_count || 0,
+    followers: rawData.followers_count || 0,
+    media_count: rawData.media_count || 0,
+    mediaCount: rawData.media_count || 0,
+    id: rawData.id,
     engagement: { 
       likes: 0, 
       comments: 0, 
@@ -190,7 +194,7 @@ function normalizeInstagramData(data: any) {
       reach: 0, 
       impressions: 0 
     },
-    link: `https://instagram.com/${data.username || 'kontenval.id'}`
+    link: `https://instagram.com/${rawData.username || 'kontenval.id'}`
   }
 }
 
