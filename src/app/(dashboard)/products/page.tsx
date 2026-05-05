@@ -36,31 +36,30 @@ interface GDriveData {
   };
 }
 
-const FOLDER_ID = '1iTAz2sMPMJro0svMXcrDrGJGZAu8ixCF';
-const FOLDER_LINK = 'https://drive.google.com/drive/folders/1iTAz2sMPMJro0svMXcrDrGJGZAu8ixCF';
-
+// Helper functions
 const getFileIcon = (mimeType: string) => {
-  if (mimeType.includes('pdf')) {
+  if (mimeType?.includes('pdf')) {
     return <FileText className="w-6 h-6 text-red-500" />;
-  } else if (mimeType.includes('spreadsheet') || mimeType.includes('excel')) {
+  } else if (mimeType?.includes('spreadsheet') || mimeType?.includes('excel')) {
     return <FileText className="w-6 h-6 text-green-500" />;
-  } else if (mimeType.includes('document') || mimeType.includes('word')) {
+  } else if (mimeType?.includes('document') || mimeType?.includes('word')) {
     return <FileText className="w-6 h-6 text-blue-500" />;
-  } else if (mimeType.includes('presentation') || mimeType.includes('powerpoint')) {
+  } else if (mimeType?.includes('presentation') || mimeType?.includes('powerpoint')) {
     return <FileText className="w-6 h-6 text-orange-500" />;
   }
   return <File className="w-6 h-6 text-gray-500" />;
 };
 
 const getFileType = (mimeType: string) => {
-  if (mimeType.includes('pdf')) return 'pdf';
-  if (mimeType.includes('spreadsheet') || mimeType.includes('excel')) return 'sheet';
-  if (mimeType.includes('document') || mimeType.includes('word')) return 'doc';
-  if (mimeType.includes('presentation') || mimeType.includes('powerpoint')) return 'slide';
+  if (mimeType?.includes('pdf')) return 'pdf';
+  if (mimeType?.includes('spreadsheet') || mimeType?.includes('excel')) return 'sheet';
+  if (mimeType?.includes('document') || mimeType?.includes('word')) return 'doc';
+  if (mimeType?.includes('presentation') || mimeType?.includes('powerpoint')) return 'slide';
   return 'file';
 };
 
 const formatFileSize = (bytes: number) => {
+  if (!bytes || bytes === 0) return '0 B';
   if (bytes >= 1000000) {
     return `${(bytes / 1000000).toFixed(1)} MB`;
   } else if (bytes >= 1000) {
@@ -111,6 +110,11 @@ export default function ProductsPage() {
   const docCount = products.filter(p => !p.mimeType?.includes('pdf')).length;
   const totalSize = products.reduce((acc, p) => acc + (p.size || 0), 0);
 
+  // Dynamic folder link from API
+  const folderLink = gdriveData?.folder?.link || 'https://drive.google.com';
+  const folderId = gdriveData?.folder?.id || 'Not configured';
+  const folderName = gdriveData?.folder?.name || 'Ebook';
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -123,7 +127,7 @@ export default function ProductsPage() {
         </div>
         <div className="flex items-center gap-3">
           <a 
-            href={FOLDER_LINK}
+            href={folderLink}
             target="_blank" 
             rel="noopener noreferrer"
           >
@@ -185,7 +189,7 @@ export default function ProductsPage() {
             />
           </div>
 
-          {/* Folder Info */}
+          {/* Folder Info - Dynamic from API */}
           <Card className={`border-blue-200 dark:border-blue-800 ${!gdriveData?.connected ? 'bg-amber-50 dark:bg-amber-900/20' : 'bg-blue-50 dark:bg-blue-900/20'}`}>
             <CardContent className="flex items-center justify-between py-4">
               <div className="flex items-center gap-4">
@@ -193,9 +197,9 @@ export default function ProductsPage() {
                   <Folder className="w-6 h-6 text-blue-600" />
                 </div>
                 <div>
-                  <p className="font-semibold">{gdriveData?.folder?.name || 'Ebook'}</p>
+                  <p className="font-semibold">{folderName}</p>
                   <p className="text-sm text-muted-foreground">
-                    Google Drive Folder • {FOLDER_ID}
+                    Google Drive Folder • {folderId}
                   </p>
                 </div>
               </div>
@@ -208,7 +212,7 @@ export default function ProductsPage() {
                 ) : (
                   <Badge variant="warning" className="flex items-center gap-1">
                     <AlertCircle className="w-3 h-3" />
-                    {products.length > 0 ? 'Demo Data' : 'Empty Folder'}
+                    {products.length > 0 ? 'Demo Data' : 'Not Connected'}
                   </Badge>
                 )}
               </div>
@@ -272,7 +276,7 @@ export default function ProductsPage() {
                       : 'Connect Google Drive in Settings to sync your products.'}
                   </p>
                   {!gdriveData?.connected && (
-                    <a href={FOLDER_LINK} target="_blank" rel="noopener noreferrer">
+                    <a href={folderLink} target="_blank" rel="noopener noreferrer">
                       <Button variant="outline">
                         <ExternalLink className="w-4 h-4 mr-2" />
                         Open Google Drive Folder

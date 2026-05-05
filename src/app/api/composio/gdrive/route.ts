@@ -2,8 +2,10 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { getConsumerApiKey } from '@/lib/composio-store'
+import { getDashboardSettings } from '@/app/api/settings/route'
 
-const GD_FOLDER_ID = '1iTAz2sMPMJro0svMXcrDrGJGZAu8ixCF'
+// Default GDrive folder ID (used as fallback when not set in settings)
+const DEFAULT_GDRIVE_FOLDER_ID = '1iTAz2sMPMJro0svMXcrDrGJGZAu8ixCF'
 
 export async function GET() {
   try {
@@ -12,6 +14,11 @@ export async function GET() {
     
     // Get API key from store
     const apiKey = getConsumerApiKey(userEmail) || process.env.COMPOSIO_API_KEY
+    
+    // Get dynamic folder ID from settings
+    const settings = getDashboardSettings()
+    const folderId = settings.gdriveFolderId || DEFAULT_GDRIVE_FOLDER_ID
+    const folderName = settings.gdriveFolderName || 'Ebook'
 
     // Try to fetch from Composio
     let files: any[] = []
@@ -19,7 +26,7 @@ export async function GET() {
 
     if (apiKey) {
       try {
-        const result = await fetchFromComposio(apiKey, GD_FOLDER_ID)
+        const result = await fetchFromComposio(apiKey, folderId)
         if (result.files && result.files.length > 0) {
           files = result.files
           connected = true
@@ -34,9 +41,9 @@ export async function GET() {
       return NextResponse.json({
         connected: false,
         folder: {
-          id: GD_FOLDER_ID,
-          name: 'Ebook',
-          link: `https://drive.google.com/drive/folders/${GD_FOLDER_ID}`
+          id: folderId,
+          name: folderName,
+          link: `https://drive.google.com/drive/folders/${folderId}`
         },
         files: [],
         summary: {
@@ -57,9 +64,9 @@ export async function GET() {
     return NextResponse.json({
       connected: true,
       folder: {
-        id: GD_FOLDER_ID,
-        name: 'Ebook',
-        link: `https://drive.google.com/drive/folders/${GD_FOLDER_ID}`
+        id: folderId,
+        name: folderName,
+        link: `https://drive.google.com/drive/folders/${folderId}`
       },
       files,
       summary: {
