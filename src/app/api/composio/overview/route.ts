@@ -62,6 +62,13 @@ export async function GET() {
       return NextResponse.json({
         success: true,
         source: 'composio',
+        _debug: {
+          apiKeySet: !!apiKey,
+          instagramFetched: !!instagram,
+          instagramFollowers: instagram?.followers_count,
+          youtubeFetched: !!youtube,
+          youtubeSubscribers: youtube?.subscribers
+        },
         timestamp: lastSyncData.timestamp.toISOString(),
         data: lastSyncData.data,
         connected: {
