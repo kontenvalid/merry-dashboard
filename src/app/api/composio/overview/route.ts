@@ -38,10 +38,13 @@ export async function GET() {
     ])
 
     // Extract results with fallbacks
-    const facebook = fbData.status === 'fulfilled' ? fbData.value : null
-    const instagram = igData.status === 'fulfilled' ? igData.value : null
-    const youtube = ytData.status === 'fulfilled' ? ytData.value : null
+    const facebook = fbData.status === 'fulfilled' ? normalizeFacebookData(fbData.value) : null
+    const instagram = igData.status === 'fulfilled' ? normalizeInstagramData(igData.value) : null
+    const youtube = ytData.status === 'fulfilled' ? normalizeYoutubeData(ytData.value) : null
     const metaAds = adsData.status === 'fulfilled' ? adsData.value : null
+
+    console.log('[Overview] IG Data raw:', JSON.stringify(igData).substring(0, 500))
+    console.log('[Overview] IG normalized:', JSON.stringify(instagram))
 
     // Check if we got any real data
     const hasRealData = facebook || instagram || youtube || metaAds
@@ -131,6 +134,78 @@ export async function GET() {
   }
 }
 
+// Normalize Facebook data from Composio
+function normalizeFacebookData(data: any) {
+  if (!data) return null
+  return {
+    connected: true,
+    pageId: data.id || FB_PAGE_ID,
+    pageName: data.name || 'kontenval.id',
+    followers: data.followers_count || data.fan_count || 0,
+    fanCount: data.fan_count || 0,
+    postsCount: data.posts?.data?.length || 0,
+    engagement: { 
+      likes: data.likes?.summary?.total_count || 0, 
+      comments: data.comments?.summary?.total_count || 0, 
+      shares: 0 
+    },
+    posts: { 
+      reach: data.reach || 0, 
+      impressions: data.impressions || 0 
+    },
+    link: `https://www.facebook.com/${data.username || 'kontenval.id'}`
+  }
+}
+
+// Normalize Instagram data from Composio
+function normalizeInstagramData(data: any) {
+  if (!data) return null
+  console.log('[normalizeInstagramData] Input:', JSON.stringify(data).substring(0, 300))
+  return {
+    connected: true,
+    username: data.username || 'kontenval.id',
+    fullName: data.name || data.full_name || 'kontenval.id',
+    followers_count: data.followers_count || 0,
+    followers: data.followers_count || 0,
+    media_count: data.media_count || 0,
+    mediaCount: data.media_count || 0,
+    id: data.id,
+    engagement: { 
+      likes: 0, 
+      comments: 0, 
+      saves: 0 
+    },
+    posts: { 
+      reach: 0, 
+      impressions: 0 
+    },
+    link: `https://instagram.com/${data.username || 'kontenval.id'}`
+  }
+}
+
+// Normalize YouTube data from Composio
+function normalizeYoutubeData(data: any) {
+  if (!data) return null
+  return {
+    connected: true,
+    channelId: data.channelId || data.id || '',
+    channelName: data.title || data.channelTitle || 'kontenval id',
+    handle: data.handle || YT_HANDLE,
+    subscribers: data.subscriberCount || data.subscribers || 0,
+    videoCount: data.videoCount || 0,
+    viewCount: data.viewCount || 0,
+    stats: { 
+      totalViews: data.viewCount || data.statistics?.viewCount || 0, 
+      avgWatchTime: '0:00' 
+    },
+    engagement: { 
+      likes: data.likeCount || 0, 
+      comments: data.commentCount || 0 
+    },
+    link: `https://youtube.com/@${YT_HANDLE.replace('@', '')}`
+  }
+}
+
 // Fetch data from Composio API
 async function fetchFromComposioAPI(apiKey: string | undefined, platform: string, param?: string) {
   if (!apiKey) {
@@ -186,6 +261,7 @@ async function fetchFromComposioAPI(apiKey: string | undefined, platform: string
     }
 
     const data = await response.json()
+    console.log('[Composio] Raw response:', JSON.stringify(data).substring(0, 300))
     return data.result || data
   } catch (error) {
     console.warn(`Failed to fetch ${platform} data from Composio:`, error)
