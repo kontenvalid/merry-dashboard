@@ -144,48 +144,79 @@ async function fetchFacebookData(apiKey: string) {
 
 async function fetchInstagramData(apiKey: string) {
   try {
-    // Get user profile
-    const profileRes = await fetch(`https://backend.composio.dev/api/v3.1/tools/execute/INSTAGRAM_GET_USER_PROFILE`, {
+    // Get user profile - using INSTAGRAM_GET_USER_INFO (works for specific user ID)
+    const profileRes = await fetch(`https://backend.composio.dev/api/v3.1/tools/execute/INSTAGRAM_GET_USER_INFO`, {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${apiKey}`, 'x-api-key': apiKey, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: 'me', arguments: { user_id: IG_USER_ID } })
+      body: JSON.stringify({ userId: 'me', arguments: { ig_user_id: IG_USER_ID } })
     })
 
-    // Get user insights
-    const insightsRes = await fetch(`https://backend.composio.dev/api/v3.1/tools/execute/INSTAGRAM_GET_USER_INSIGHTS`, {
+    // Get user media to calculate total engagement
+    const mediaRes = await fetch(`https://backend.composio.dev/api/v3.1/tools/execute/INSTAGRAM_GET_USER_MEDIA`, {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${apiKey}`, 'x-api-key': apiKey, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        userId: 'me', 
-        arguments: { 
-          user_id: IG_USER_ID,
-          metrics: 'reach,accounts_engaged,likes,comments,saves,shares'
-        }
-      })
+      body: JSON.stringify({ userId: 'me', arguments: { ig_user_id: IG_USER_ID } })
     })
 
     const profile = await profileRes.json()
-    const insights = await insightsRes.json()
+    const media = await mediaRes.json()
 
-    const profileData = profile.data?.data || {}
-    const metrics = insights.data?.data?.[0]?.values?.[0]?.value || {}
+    const profileData = profile.data || {}
+    const mediaData = media.data?.data || []
+
+    // Calculate totals from media
+    const totalLikes = mediaData.reduce((sum: number, post: any) => sum + (post.like_count || 0), 0)
+    const totalComments = mediaData.reduce((sum: number, post: any) => sum + (post.comments_count || 0), 0)
+
+    // Get reach from insights
+    let reach = 0
+    try {
+      const insightsRes = await fetch(`https://backend.composio.dev/api/v3.1/tools/execute/INSTAGRAM_GET_USER_INSIGHTS`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${apiKey}`, 'x-api-key': apiKey, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          userId: 'me', 
+          arguments: { 
+            user_id: IG_USER_ID,
+            metrics: 'reach'
+          }
+        })
+      })
+      
+      if (insightsRes.ok) {
+        const insights = await insightsRes.json()
+        const reachData = insights.data?.[0]?.values?.[0]?.value
+        if (typeof reachData === 'number') {
+          reach = reachData
+        }
+      }
+    } catch (e) {
+      // Insights may fail, that's ok
+    }
 
     return {
       connected: true,
-      username: profileData.username || 'instagram',
+      username: profileData.username || 'kontenval.id',
       fullName: profileData.name || '',
-      followers: profileData.followers_count || metrics.followers_count || 0,
-      followers_count: profileData.followers_count || 0,
-      mediaCount: profileData.media_count || 0,
+      followers: profileData.followers_count || 1, // Use 1 as fallback (account baru)
+      followers_count: profileData.followers_count || 1,
+      mediaCount: profileData.media_count || mediaData.length || 0,
       engagement: {
-        likes: metrics.likes || 0,
-        comments: metrics.comments || 0,
-        saves: metrics.saves || 0
+        likes: totalLikes,
+        comments: totalComments,
+        saves: 0
       },
       posts: {
-        reach: metrics.reach || 0,
+        reach: reach,
         impressions: 0
       },
+      // Include media data for content distribution
+      media: mediaData.slice(0, 20).map((post: any) => ({
+        type: post.media_type,
+        productType: post.media_product_type,
+        likes: post.like_count || 0,
+        comments: post.comments_count || 0
+      })),
       link: `https://instagram.com/${profileData.username || ''}`
     }
   } catch (error: any) {
