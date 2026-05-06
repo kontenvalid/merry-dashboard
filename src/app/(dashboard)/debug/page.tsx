@@ -15,7 +15,9 @@ import {
   Clock,
   ChevronDown,
   ChevronRight,
-  Loader2
+  Loader2,
+  Zap,
+  Shield
 } from "lucide-react";
 
 interface ApiStatus {
@@ -34,11 +36,11 @@ export default function DebugPage() {
 
   // Initial API checks
   const apis = [
-    { name: 'Meta Ads (Graph API)', endpoint: '/api/composio/metaads' },
-    { name: 'Overview (Social Media)', endpoint: '/api/composio/overview' },
-    { name: 'Google Drive', endpoint: '/api/composio/gdrive' },
-    { name: 'Settings', endpoint: '/api/settings' },
-    { name: 'Composio Status', endpoint: '/api/composio/mcp-status' },
+    { name: 'Meta Ads (Direct Graph API)', endpoint: '/api/composio/metaads' },
+    { name: 'Social Media (Composio MCP)', endpoint: '/api/composio/overview' },
+    { name: 'Google Drive (Composio MCP)', endpoint: '/api/composio/gdrive' },
+    { name: 'Composio MCP Status', endpoint: '/api/composio/mcp-status' },
+    { name: 'Dashboard Settings', endpoint: '/api/settings' },
   ];
 
   const checkApi = async () => {
@@ -96,26 +98,43 @@ export default function DebugPage() {
     setLoading(false);
   };
 
-  // Check Composio connections via direct API
-  const checkComposioTools = async (toolSlug: string, toolName: string, args: any = {}) => {
+  // Check Composio connection status via real API call
+  const checkComposioStatus = async () => {
+    const results: ApiStatus[] = [];
     const startTime = Date.now();
     
     try {
-      // This would need Composio API key - for now show as pending
-      return {
-        name: toolName,
-        status: 'pending' as const,
-        message: 'Requires Composio API key',
-        duration: Date.now() - startTime
-      };
+      const response = await fetch('/api/composio/mcp-status', { cache: 'no-store' });
+      const data = await response.json();
+      const duration = Date.now() - startTime;
+      
+      if (response.ok && data.connected) {
+        results.push({
+          name: 'Composio MCP',
+          status: 'success',
+          message: 'Connected via Composio',
+          details: data,
+          duration
+        });
+      } else {
+        results.push({
+          name: 'Composio MCP',
+          status: 'error',
+          message: data.message || 'Not connected',
+          details: data,
+          duration
+        });
+      }
     } catch (error: any) {
-      return {
-        name: toolName,
-        status: 'error' as const,
+      results.push({
+        name: 'Composio MCP',
+        status: 'error',
         message: error.message,
         duration: Date.now() - startTime
-      };
+      });
     }
+    
+    return results;
   };
 
   useEffect(() => {
@@ -312,36 +331,33 @@ export default function DebugPage() {
         </CardContent>
       </Card>
 
-      {/* Environment Info (Read-only) */}
+      {/* Environment Info (from actual API responses) */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Key className="w-5 h-5" />
-            Environment Status
+            Connection Status
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-              <span className="text-sm">Composio API Key</span>
-              <Badge variant={process.env.NEXT_PUBLIC_COMPOSIO_API_KEY ? "success" : "secondary"}>
-                {process.env.NEXT_PUBLIC_COMPOSIO_API_KEY ? 'Configured' : 'Not Set'}
-              </Badge>
-            </div>
-            <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-              <span className="text-sm">Meta Access Token</span>
-              <Badge variant={process.env.NEXT_PUBLIC_META_TOKEN ? "success" : "secondary"}>
-                {process.env.NEXT_PUBLIC_META_TOKEN ? 'Configured' : 'Not Set'}
-              </Badge>
-            </div>
-            <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-              <span className="text-sm">Google OAuth</span>
-              <Badge variant="success">Connected</Badge>
-            </div>
-            <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-              <span className="text-sm">Database (Neon)</span>
-              <Badge variant="success">Connected</Badge>
-            </div>
+          <div className="space-y-3">
+            {apiStatuses.map((api) => {
+              const isSuccess = api.status === 'success';
+              return (
+                <div key={api.name} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                  <span className="text-sm">{api.name}</span>
+                  <Badge variant={isSuccess ? "success" : "destructive"}>
+                    {isSuccess ? 'Connected' : 'Not Connected'}
+                  </Badge>
+                </div>
+              );
+            })}
+          </div>
+          <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+            <p className="text-sm text-blue-700 dark:text-blue-400">
+              <strong>Note:</strong> All connections via Composio MCP. Meta Ads data comes from 
+              Direct Graph API when connected.
+            </p>
           </div>
         </CardContent>
       </Card>
