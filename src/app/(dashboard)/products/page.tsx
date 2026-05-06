@@ -204,17 +204,10 @@ export default function ProductsPage() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                {gdriveData?.connected ? (
-                  <Badge variant="success" className="flex items-center gap-1">
-                    <CheckCircle className="w-3 h-3" />
-                    Connected
-                  </Badge>
-                ) : (
-                  <Badge variant="warning" className="flex items-center gap-1">
-                    <AlertCircle className="w-3 h-3" />
-                    {products.length > 0 ? 'Demo Data' : 'Not Connected'}
-                  </Badge>
-                )}
+                <Badge variant="secondary" className="flex items-center gap-1">
+                  <Folder className="w-3 h-3" />
+                  {products.length} products
+                </Badge>
               </div>
             </CardContent>
           </Card>
