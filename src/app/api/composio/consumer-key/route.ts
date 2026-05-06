@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { NextRequest } from 'next/server'
-import { setConsumerApiKey, deleteConsumerApiKey, hasConsumerApiKey } from '@/lib/composio-store'
+import { saveApiKey, getApiKey, hasApiKey, deleteApiKey } from '@/lib/api-key-store'
 
 export async function GET() {
   const session = await getServerSession(authOptions)
@@ -11,12 +11,17 @@ export async function GET() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const userEmail = session.user.email
-  const hasKey = hasConsumerApiKey(userEmail) || !!process.env.COMPOSIO_API_KEY
+  const userId = session.user.id || session.user.email
+  
+  // Check from database (primary) and environment (fallback)
+  const hasKeyInDb = await hasApiKey(userId, 'composio')
+  const hasKeyInEnv = !!process.env.COMPOSIO_API_KEY
+  const hasKey = hasKeyInDb || hasKeyInEnv
 
   return NextResponse.json({
     hasKey,
-    maskedKey: hasKey ? '••••••••' : null // Don't expose actual key
+    source: hasKeyInDb ? 'database' : hasKeyInEnv ? 'environment' : 'none',
+    maskedKey: hasKey ? '••••••••' : null
   })
 }
 
@@ -39,13 +44,13 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'API key too short' }, { status: 400 })
     }
 
-    const userEmail = session.user.email
+    const userId = session.user.id || session.user.email
     
-    // Store using shared store (in production, encrypt this!)
-    setConsumerApiKey(userEmail, consumerApiKey)
-
-    // Also save to environment variable for Composio SDK (if needed)
-    process.env.COMPOSIO_CONSUMER_API_KEY = consumerApiKey
+    // Store in database for persistence across deployments
+    await saveApiKey(userId, 'composio', consumerApiKey, { 
+      addedAt: new Date().toISOString(),
+      source: 'user_input'
+    })
 
     return NextResponse.json({
       success: true,
@@ -64,8 +69,8 @@ export async function DELETE() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const userEmail = session.user.email
-  deleteConsumerApiKey(userEmail)
+  const userId = session.user.id || session.user.email
+  await deleteApiKey(userId, 'composio')
 
   return NextResponse.json({ success: true })
 }

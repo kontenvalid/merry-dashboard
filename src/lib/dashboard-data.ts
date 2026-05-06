@@ -74,37 +74,51 @@ export async function fetchDashboardData(userId: string): Promise<DashboardData>
   }
 
   try {
+    // Get API keys from database - both composio and meta_graph
     const apiKey = await getApiKey(userId, 'composio')
     const metaToken = await getApiKey(userId, 'meta_graph')
-
-    // Fetch all data in parallel
-    const [fbData, igData, ytData, metaAdsData] = await Promise.allSettled([
-      // Social media via Composio (these work!)
-      apiKey ? fetchFacebookData(apiKey) : Promise.resolve(null),
-      apiKey ? fetchInstagramData(apiKey) : Promise.resolve(null),
-      apiKey ? fetchYoutubeData(apiKey) : Promise.resolve(null),
-      // Meta Ads via direct Graph API (fallback from Composio)
-      metaToken ? fetchMetaAdsData(metaToken) : Promise.resolve(null),
-    ])
-
-    // Process results - only use data that has real values
-    if (fbData.status === 'fulfilled' && fbData.value) {
-      result.facebook = fbData.value
+    
+    // If no API keys configured, return empty result
+    if (!apiKey && !metaToken) {
+      console.log('No API keys configured for user:', userId)
+      result.source = 'no_keys'
+      return result
     }
 
-    if (igData.status === 'fulfilled' && igData.value) {
-      result.instagram = igData.value
+    // Fetch all data in parallel (only fetch if key exists)
+    const promises: Promise<void>[] = []
+    
+    // Social media via Composio
+    if (apiKey) {
+      promises.push(
+        fetchFacebookData(apiKey).then(data => {
+          if (data) result.facebook = data
+        }).catch(err => console.warn('Facebook fetch failed:', err))
+      )
+      promises.push(
+        fetchInstagramData(apiKey).then(data => {
+          if (data) result.instagram = data
+        }).catch(err => console.warn('Instagram fetch failed:', err))
+      )
+      promises.push(
+        fetchYoutubeData(apiKey).then(data => {
+          if (data) result.youtube = data
+        }).catch(err => console.warn('YouTube fetch failed:', err))
+      )
     }
-
-    if (ytData.status === 'fulfilled' && ytData.value) {
-      result.youtube = ytData.value
+    
+    // Meta Ads via direct Graph API
+    if (metaToken) {
+      promises.push(
+        fetchMetaAdsData(metaToken).then(data => {
+          result.metaAds = data
+        }).catch(err => console.warn('Meta Ads fetch failed:', err))
+      )
     }
-
-    if (metaAdsData.status === 'fulfilled' && metaAdsData.value) {
-      result.metaAds = metaAdsData.value
-    }
-
-    result.source = 'composio_direct'
+    
+    await Promise.all(promises)
+    
+    result.source = apiKey ? 'composio_direct' : 'meta_graph_only'
     return result
   } catch (error: any) {
     console.error('Dashboard data fetch error:', error)
