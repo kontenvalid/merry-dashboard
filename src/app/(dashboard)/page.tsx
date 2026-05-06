@@ -165,44 +165,44 @@ export default function DashboardPage() {
       </div>
 
       {/* Connection Status */}
-      <Card className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20">
+      <Card className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 border-blue-200 dark:border-blue-800">
         <CardContent className="flex flex-wrap items-center justify-between py-4 gap-4">
           <div className="flex items-center gap-4">
-            <div className="text-lg font-semibold">Platform Status:</div>
+            <div className="text-lg font-semibold text-foreground">Platform Status:</div>
             <div className="flex items-center gap-2">
               {fbData?.connected ? (
-                <Badge variant="success" className="flex items-center gap-1">
+                <Badge variant="success" className="flex items-center gap-1 text-white dark:text-white">
                   <CheckCircle className="w-3 h-3" /> Facebook
                 </Badge>
               ) : (
-                <Badge variant="secondary" className="flex items-center gap-1">
+                <Badge variant="secondary" className="flex items-center gap-1 text-foreground">
                   <AlertCircle className="w-3 h-3" /> Facebook
                 </Badge>
               )}
               {igData?.connected ? (
-                <Badge variant="success" className="flex items-center gap-1">
+                <Badge variant="success" className="flex items-center gap-1 text-white dark:text-white">
                   <CheckCircle className="w-3 h-3" /> Instagram
                 </Badge>
               ) : (
-                <Badge variant="secondary" className="flex items-center gap-1">
+                <Badge variant="secondary" className="flex items-center gap-1 text-foreground">
                   <AlertCircle className="w-3 h-3" /> Instagram
                 </Badge>
               )}
               {ytData?.connected ? (
-                <Badge variant="success" className="flex items-center gap-1">
+                <Badge variant="success" className="flex items-center gap-1 text-white dark:text-white">
                   <CheckCircle className="w-3 h-3" /> YouTube
                 </Badge>
               ) : (
-                <Badge variant="secondary" className="flex items-center gap-1">
+                <Badge variant="secondary" className="flex items-center gap-1 text-foreground">
                   <AlertCircle className="w-3 h-3" /> YouTube
                 </Badge>
               )}
               {data?.data?.metaAds?.connected ? (
-                <Badge variant="success" className="flex items-center gap-1">
+                <Badge variant="success" className="flex items-center gap-1 text-white dark:text-white">
                   <CheckCircle className="w-3 h-3" /> Meta Ads
                 </Badge>
               ) : (
-                <Badge variant="secondary" className="flex items-center gap-1">
+                <Badge variant="secondary" className="flex items-center gap-1 text-foreground">
                   <AlertCircle className="w-3 h-3" /> Meta Ads
                 </Badge>
               )}
@@ -210,7 +210,7 @@ export default function DashboardPage() {
           </div>
           <a 
             href={isAdmin ? "/settings" : "/settings"} 
-            className="text-sm text-blue-600 hover:underline"
+            className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
           >
             Manage connections →
           </a>
@@ -262,17 +262,17 @@ export default function DashboardPage() {
         {/* Facebook */}
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="flex items-center justify-between text-sm">
+            <CardTitle className="flex items-center justify-between text-sm text-foreground">
               <span>Facebook</span>
               <Badge variant="primary">Page</Badge>
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              <p className="text-2xl font-bold">{fbData?.followers || fbData?.fanCount || 0}</p>
+              <p className="text-2xl font-bold text-foreground">{fbData?.followers || fbData?.fanCount || 0}</p>
               <p className="text-sm text-muted-foreground">Followers</p>
               <div className="flex gap-2 pt-2">
-                <Badge variant="outline" className="text-xs">
+                <Badge variant="outline" className="text-xs text-foreground">
                   {fbData?.pageName || 'kontenval.id'}
                 </Badge>
               </div>
@@ -286,17 +286,17 @@ export default function DashboardPage() {
         {/* Instagram */}
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="flex items-center justify-between text-sm">
+            <CardTitle className="flex items-center justify-between text-sm text-foreground">
               <span>Instagram</span>
               <Badge variant="primary">Creator</Badge>
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              <p className="text-2xl font-bold">{igData?.followers || igData?.followers_count || 0}</p>
+              <p className="text-2xl font-bold text-foreground">{igData?.followers || igData?.followers_count || 0}</p>
               <p className="text-sm text-muted-foreground">Followers</p>
               <div className="flex gap-2 pt-2">
-                <Badge variant="outline" className="text-xs">
+                <Badge variant="outline" className="text-xs text-foreground">
                   @{igData?.username || 'kontenval.id'}
                 </Badge>
               </div>
@@ -310,20 +310,20 @@ export default function DashboardPage() {
         {/* YouTube */}
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="flex items-center justify-between text-sm">
+            <CardTitle className="flex items-center justify-between text-sm text-foreground">
               <span>YouTube</span>
               <Badge variant="primary">Channel</Badge>
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              <p className="text-2xl font-bold">{ytData?.subscribers || 0}</p>
+              <p className="text-2xl font-bold text-foreground">{ytData?.subscribers || 0}</p>
               <p className="text-sm text-muted-foreground">Subscribers</p>
               <div className="flex gap-2 pt-2">
-                <Badge variant="outline" className="text-xs">
+                <Badge variant="outline" className="text-xs text-foreground">
                   {ytData?.videoCount || 0} videos
                 </Badge>
-                <Badge variant="outline" className="text-xs">
+                <Badge variant="outline" className="text-xs text-foreground">
                   {formatNum(ytData?.viewCount || 0)} views
                 </Badge>
               </div>
@@ -358,9 +358,9 @@ export default function DashboardPage() {
 
       {/* Meta Ads Summary */}
       {data?.data?.metaAds?.connected && data?.data?.metaAds?.summary && (
-        <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20">
+        <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border-blue-200 dark:border-blue-800">
           <CardHeader>
-            <CardTitle className="flex items-center justify-between">
+            <CardTitle className="flex items-center justify-between text-foreground">
               <span>📊 Meta Ads Summary</span>
               <Badge variant="success">Live Data</Badge>
             </CardTitle>
