@@ -19,6 +19,13 @@ interface AnalyticsRecord {
   views: number;
 }
 
+interface MediaPost {
+  type: string;
+  productType?: string;
+  likes: number;
+  comments: number;
+}
+
 interface OverviewData {
   connected: boolean;
   followers?: number;
@@ -30,9 +37,11 @@ interface OverviewData {
   subscribers?: number;
   videoCount?: number;
   viewCount?: number;
+  mediaCount?: number;
   posts?: { reach: number; impressions: number };
   stats?: { totalViews: number; watchTimeMinutes?: number };
   engagement?: { likes: number; comments: number; shares: number };
+  media?: MediaPost[];
 }
 
 interface EngagementDataPoint {
@@ -121,7 +130,7 @@ export default function AnalyticsPage() {
     return num.toLocaleString();
   };
 
-  // Generate follower data
+  // Generate follower data from real data
   const generateFollowerData = () => {
     const baseFb = accountInfo.facebook.followers;
     const baseIg = accountInfo.instagram.followers;
@@ -160,7 +169,7 @@ export default function AnalyticsPage() {
     });
   };
 
-  // Get engagement data using REAL API data
+  // Get engagement data from real API data
   const getEngagementData = (): EngagementDataPoint[] => {
     const fb = overviewData.facebook;
     const ig = overviewData.instagram;
@@ -198,7 +207,7 @@ export default function AnalyticsPage() {
     ];
   };
 
-  // Get stats using REAL data
+  // Get stats from real data
   const getStats = () => {
     const fb = overviewData.facebook;
     const ig = overviewData.instagram;
@@ -309,39 +318,41 @@ export default function AnalyticsPage() {
     });
   };
 
+  // Get content distribution from REAL IG media data
+  const getContentData = () => {
+    const igMedia = overviewData.instagram?.media || [];
+    
+    if (igMedia.length > 0) {
+      // Count from real media data
+      const reels = igMedia.filter((m) => m.type === 'VIDEO' || m.productType === 'REELS').length;
+      const images = igMedia.filter((m) => m.type === 'IMAGE').length;
+      const carousel = igMedia.filter((m) => m.type === 'CAROUSEL').length;
+      
+      return [
+        { name: "Reels", value: reels, color: "#E4405F" },
+        { name: "Images", value: images, color: "#833AB4" },
+        { name: "Carousel", value: carousel, color: "#F77737" },
+      ].filter(item => item.value > 0);
+    }
+    
+    // If no real media data, show from overview
+    const mediaCount = overviewData.instagram?.mediaCount || 0;
+    if (mediaCount > 0) {
+      return [
+        { name: "Content", value: mediaCount, color: "#E4405F" },
+      ];
+    }
+    
+    return [];
+  };
+
   const stats = getStats();
   const engagementData = getEngagementData();
   const followerData = generateFollowerData();
   const reachData = getReachData();
-
-  // Content distribution - based on real platform data
-  const getContentData = () => {
-    if (platform === "facebook") {
-      return [
-        { name: "Posts", value: 45, color: "#1877F2" },
-        { name: "Reels", value: 30, color: "#E4405F" },
-        { name: "Stories", value: 15, color: "#FF0000" },
-        { name: "Live", value: 10, color: "#00D26A" },
-      ];
-    } else if (platform === "instagram") {
-      return [
-        { name: "Posts", value: 30, color: "#E4405F" },
-        { name: "Reels", value: 45, color: "#833AB4" },
-        { name: "Stories", value: 20, color: "#F77737" },
-        { name: "Live", value: 5, color: "#FD1D1D" },
-      ];
-    } else {
-      return [
-        { name: "Videos", value: 70, color: "#FF0000" },
-        { name: "Shorts", value: 25, color: "#FF4444" },
-        { name: "Live", value: 5, color: "#CC0000" },
-      ];
-    }
-  };
-
   const contentData = getContentData();
 
-  // Breakdown data - REAL DATA
+  // Breakdown data from real API data
   const getBreakdown = () => {
     const fb = overviewData.facebook;
     const ig = overviewData.instagram;
@@ -439,7 +450,7 @@ export default function AnalyticsPage() {
         </div>
       </div>
 
-      {/* Stats - REAL DATA */}
+      {/* Stats from REAL API */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           title="Total Followers"
@@ -476,7 +487,13 @@ export default function AnalyticsPage() {
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold text-lg">Content Distribution</h3>
           </div>
-          <ContentPieChart data={contentData} />
+          {contentData.length > 0 ? (
+            <ContentPieChart data={contentData} />
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              No content data available
+            </div>
+          )}
         </div>
       </div>
 
