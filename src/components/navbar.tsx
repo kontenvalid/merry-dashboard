@@ -16,6 +16,7 @@ import {
   Users,
   Shield,
   Settings,
+  Bug,
   LogOut,
   ChevronDown,
 } from "lucide-react";
@@ -33,6 +34,7 @@ const adminItems = [
   { href: "/users", label: "User Management", icon: Users },
   { href: "/roles", label: "Role Management", icon: Shield },
   { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/debug", label: "Debug", icon: Bug },
 ];
 
 export function Navbar() {
