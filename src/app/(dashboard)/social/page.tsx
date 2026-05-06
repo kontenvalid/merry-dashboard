@@ -9,48 +9,60 @@ import { PlatformBadge } from "@/components/platform-badge";
 import { Loader2 } from "lucide-react";
 import { Plus, RefreshCw, ExternalLink, CheckCircle, AlertCircle } from "lucide-react";
 
-// Real account data from context
-const REAL_ACCOUNTS = {
-  facebook: {
-    id: '1080250281836384',
-    name: 'kontenval.id',
-    username: '@kontenval.id',
-    type: 'Page',
-    followers: 6,
-    fanCount: 6,
-    link: 'https://www.facebook.com/kontenval.id'
-  },
-  instagram: {
-    id: '27556603287273697',
-    name: 'kontenval.id',
-    username: '@kontenval.id',
-    type: 'Creator',
-    followers: 1,
-    mediaCount: 7,
-    link: 'https://instagram.com/kontenval.id'
-  },
-  youtube: {
-    id: 'UCBnBSmXbITcJBnBnKnFC_XQ',
-    name: 'kontenval id',
-    username: '@kontenvalid',
-    type: 'Channel',
-    subscribers: 11,
-    videos: 7,
-    views: 4616,
-    link: 'https://youtube.com/@kontenvalid'
-  }
-}
-
 interface ConnectedAccount {
   id: string;
   platform: "facebook" | "instagram" | "youtube";
   name: string;
   username: string;
-  followers: string;
+  followers: number | null;
   status: "active" | "inactive";
   connectedAt: string;
   link: string;
 }
+
+interface OverviewResponse {
+  success?: boolean;
+  data?: {
+    facebook?: {
+      connected?: boolean;
+      name?: string;
+      handle?: string;
+      followers?: number;
+      posts?: { reach?: number };
+      engagement?: { likes?: number };
+      link?: string;
+    };
+    instagram?: {
+      connected?: boolean;
+      name?: string;
+      handle?: string;
+      followers?: number;
+      followers_count?: number;
+      mediaCount?: number;
+      engagement?: { likes?: number; comments?: number };
+      link?: string;
+    };
+    youtube?: {
+      connected?: boolean;
+      name?: string;
+      handle?: string;
+      subscribers?: number;
+      videoCount?: number;
+      viewCount?: number;
+      link?: string;
+    };
+  };
+}
+
+// Safe number display
+const displayNumber = (value: number | undefined | null, format: 'compact' | 'full' = 'full'): string => {
+  if (value === undefined || value === null) return '-';
+  if (format === 'compact') {
+    if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`;
+    if (value >= 1000) return `${(value / 1000).toFixed(1)}K`;
+  }
+  return value.toLocaleString();
+};
 
 export default function SocialPage() {
   const [loading, setLoading] = useState(false);
@@ -67,8 +79,10 @@ export default function SocialPage() {
     try {
       const response = await fetch('/api/composio/overview');
       if (response.ok) {
-        const data = await response.json();
-        updateAccountsFromData(data);
+        const data: OverviewResponse = await response.json();
+        const accountsData = extractAccounts(data);
+        setAccounts(accountsData);
+        setLastSync(new Date());
       }
     } catch (error) {
       console.error('Failed to load accounts:', error);
@@ -77,102 +91,64 @@ export default function SocialPage() {
     }
   };
 
-  const updateAccountsFromData = (data: any) => {
-    const connected: ConnectedAccount[] = [];
-    
+  const extractAccounts = (data: OverviewResponse): ConnectedAccount[] => {
+    const accounts: ConnectedAccount[] = [];
+    const d = data?.data;
+
     // Facebook
-    if (data.data?.facebook?.connected || data.data?.facebook?.pageId) {
-      const fb = data.data.facebook;
-      connected.push({
-        id: fb.pageId || REAL_ACCOUNTS.facebook.id,
+    if (d?.facebook?.connected) {
+      accounts.push({
+        id: 'facebook',
         platform: 'facebook',
-        name: fb.pageName || REAL_ACCOUNTS.facebook.name,
-        username: fb.pageName ? `@${fb.pageName.toLowerCase().replace(/\s+/g, '')}` : REAL_ACCOUNTS.facebook.username,
-        followers: (fb.followers || fb.fanCount || REAL_ACCOUNTS.facebook.followers).toLocaleString(),
+        name: d.facebook.name || 'Facebook Page',
+        username: d.facebook.handle || '@kontenval.id',
+        followers: d.facebook.followers ?? null,
         status: 'active',
         connectedAt: '2024-04-30',
-        link: fb.link || REAL_ACCOUNTS.facebook.link
+        link: d.facebook.link || 'https://www.facebook.com/kontenval.id'
       });
     }
-    
-    // Instagram
-    if (data.data?.instagram?.connected || data.data?.instagram?.username) {
-      const ig = data.data.instagram;
-      connected.push({
-        id: ig.username || 'instagram',
+
+    // Instagram - check both followers and followers_count
+    if (d?.instagram?.connected) {
+      accounts.push({
+        id: 'instagram',
         platform: 'instagram',
-        name: ig.fullName || ig.username || REAL_ACCOUNTS.instagram.name,
-        username: ig.username ? `@${ig.username}` : REAL_ACCOUNTS.instagram.username,
-        followers: (ig.followers || REAL_ACCOUNTS.instagram.followers).toLocaleString(),
+        name: d.instagram.name || 'Instagram',
+        username: d.instagram.handle || '@kontenval.id',
+        followers: d.instagram.followers ?? d.instagram.followers_count ?? null,
         status: 'active',
         connectedAt: '2024-04-30',
-        link: ig.link || REAL_ACCOUNTS.instagram.link
+        link: d.instagram.link || 'https://instagram.com/kontenval.id'
       });
     }
-    
+
     // YouTube
-    if (data.data?.youtube?.connected || data.data?.youtube?.channelId) {
-      const yt = data.data.youtube;
-      connected.push({
-        id: yt.channelId || 'youtube',
+    if (d?.youtube?.connected) {
+      accounts.push({
+        id: 'youtube',
         platform: 'youtube',
-        name: yt.channelName || yt.title || REAL_ACCOUNTS.youtube.name,
-        username: yt.handle || REAL_ACCOUNTS.youtube.username,
-        followers: (yt.subscribers || yt.subscriberCount || REAL_ACCOUNTS.youtube.subscribers).toLocaleString(),
+        name: d.youtube.name || 'YouTube Channel',
+        username: d.youtube.handle || '@kontenvalid',
+        followers: d.youtube.subscribers ?? null,
         status: 'active',
         connectedAt: '2024-04-30',
-        link: yt.link || REAL_ACCOUNTS.youtube.link
+        link: d.youtube.link || 'https://youtube.com/@kontenvalid'
       });
     }
-    
-    // If no real data from API, use fallback real data
-    if (connected.length === 0) {
-      connected.push(
-        {
-          id: REAL_ACCOUNTS.facebook.id,
-          platform: 'facebook',
-          name: REAL_ACCOUNTS.facebook.name,
-          username: REAL_ACCOUNTS.facebook.username,
-          followers: REAL_ACCOUNTS.facebook.followers.toLocaleString(),
-          status: 'active',
-          connectedAt: '2024-04-30',
-          link: REAL_ACCOUNTS.facebook.link
-        },
-        {
-          id: REAL_ACCOUNTS.instagram.id,
-          platform: 'instagram',
-          name: REAL_ACCOUNTS.instagram.name,
-          username: REAL_ACCOUNTS.instagram.username,
-          followers: REAL_ACCOUNTS.instagram.followers.toLocaleString(),
-          status: 'active',
-          connectedAt: '2024-04-30',
-          link: REAL_ACCOUNTS.instagram.link
-        },
-        {
-          id: REAL_ACCOUNTS.youtube.id,
-          platform: 'youtube',
-          name: REAL_ACCOUNTS.youtube.name,
-          username: REAL_ACCOUNTS.youtube.username,
-          followers: REAL_ACCOUNTS.youtube.subscribers.toLocaleString(),
-          status: 'active',
-          connectedAt: '2024-04-30',
-          link: REAL_ACCOUNTS.youtube.link
-        }
-      );
-    }
-    
-    setAccounts(connected);
-    setLastSync(new Date());
+
+    return accounts;
   };
 
   const handleRefresh = async () => {
     setLoading(true);
     try {
-      // Fetch fresh data from Composio API
-      const response = await fetch('/api/composio/overview?refresh=' + Date.now());
+      const response = await fetch('/api/composio/overview');
       if (response.ok) {
-        const data = await response.json();
-        updateAccountsFromData(data);
+        const data: OverviewResponse = await response.json();
+        const accountsData = extractAccounts(data);
+        setAccounts(accountsData);
+        setLastSync(new Date());
       }
     } catch (error) {
       console.error('Failed to refresh accounts:', error);
@@ -245,7 +221,9 @@ export default function SocialPage() {
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Followers</span>
-                    <span className="font-medium">{account.followers}</span>
+                    <span className="font-medium">
+                      {account.followers !== null ? displayNumber(account.followers) : '-'}
+                    </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Connected</span>
@@ -263,6 +241,13 @@ export default function SocialPage() {
               </div>
             ))}
           </div>
+          
+          {accounts.length === 0 && (
+            <div className="text-center py-8 text-muted-foreground">
+              <p>No connected accounts found</p>
+              <p className="text-sm">Connect your social media accounts in Settings</p>
+            </div>
+          )}
         </CardContent>
       </Card>
 

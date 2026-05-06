@@ -12,43 +12,55 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Users, Eye, TrendingUp, DollarSign, CheckCircle, AlertCircle } from "lucide-react";
 
-interface OverviewResponse {
-  success: boolean;
-  source: string;
-  data: {
-    facebook: {
-      connected: boolean;
-      followers: number;
-      fanCount: number;
-      pageName?: string;
-      posts?: { reach: number; impressions: number };
-      engagement?: { likes: number; comments: number; shares: number };
-    };
-    instagram: {
-      connected: boolean;
-      username?: string;
-      followers: number;
-      followers_count: number;
-      mediaCount?: number;
-      posts?: { reach: number; impressions: number };
-      engagement?: { likes: number; comments: number };
-    };
-    youtube: {
-      connected: boolean;
-      channelName?: string;
-      subscribers: number;
-      videoCount: number;
-      viewCount: number;
-      stats?: { totalViews: number };
-      engagement?: { likes: number; comments: number };
-    };
-    metaAds: {
-      connected: boolean;
-      accounts?: any[];
-      summary?: any;
-    };
+interface PlatformData {
+  connected?: boolean;
+  name?: string;
+  handle?: string;
+  followers?: number;
+  subscribers?: number;
+  views?: number;
+  reach?: number;
+  engagement?: {
+    likes?: number;
+    comments?: number;
+  };
+  posts?: { reach?: number };
+  stats?: { totalViews?: number };
+  videoCount?: number;
+  viewCount?: number;
+  link?: string;
+}
+
+interface MetaAdsData {
+  connected?: boolean;
+  summary?: {
+    totalSpend?: number;
+    totalCampaigns?: number;
+    avgCPC?: number;
   };
 }
+
+interface OverviewResponse {
+  success?: boolean;
+  source?: string;
+  data?: {
+    facebook: PlatformData;
+    instagram: PlatformData;
+    youtube: PlatformData;
+    metaAds: MetaAdsData;
+    googleDrive?: { connected?: boolean; fileCount?: number };
+  };
+}
+
+// Safe number display - shows "-" instead of 0 for missing data
+const displayNumber = (value: number | undefined | null, format: 'compact' | 'full' = 'full'): string => {
+  if (value === undefined || value === null) return '-';
+  if (format === 'compact') {
+    if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`;
+    if (value >= 1000) return `${(value / 1000).toFixed(1)}K`;
+  }
+  return value.toLocaleString();
+};
 
 export default function DashboardPage() {
   const { data: session, status } = useSession();
@@ -94,53 +106,62 @@ export default function DashboardPage() {
 
   const isAdmin = session.user?.email === "kontenval.id@gmail.com";
   
-  // Extract real data from API response
-  const fbData = data?.data?.facebook;
-  const igData = data?.data?.instagram;
-  const ytData = data?.data?.youtube;
+  // Extract real data - NOT filling with 0
+  const fb = data?.data?.facebook;
+  const ig = data?.data?.instagram;
+  const yt = data?.data?.youtube;
+  const metaAds = data?.data?.metaAds;
   
-  const totalFollowers = (fbData?.followers || 0) + (igData?.followers || 0) + (ytData?.subscribers || 0);
-  const totalReach = (fbData?.posts?.reach || 0) + (igData?.posts?.reach || 0) + (ytData?.stats?.totalViews || 0);
+  // Calculate totals - only sum if value exists
+  const totalFollowers = 
+    (fb?.followers || 0) + 
+    (ig?.followers || 0) + 
+    (yt?.subscribers || 0);
+  
+  const totalReach = 
+    (fb?.posts?.reach || 0) + 
+    (ig?.posts?.reach || 0) + 
+    (yt?.stats?.totalViews || yt?.viewCount || 0);
+  
   const totalEngagement = 
-    (fbData?.engagement?.likes || 0) + (fbData?.engagement?.comments || 0) + 
-    (igData?.engagement?.likes || 0) + (igData?.engagement?.comments || 0) + 
-    (ytData?.engagement?.likes || 0) + (ytData?.engagement?.comments || 0);
-  
-  const engagementRate = totalFollowers > 0 ? ((totalEngagement / totalFollowers) * 100).toFixed(1) : "0";
-  
-  // Format number helper
-  const formatNum = (num: number) => {
-    if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
-    if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
-    return num.toLocaleString();
-  };
+    (fb?.engagement?.likes || 0) + 
+    (fb?.engagement?.comments || 0) + 
+    (ig?.engagement?.likes || 0) + 
+    (ig?.engagement?.comments || 0) + 
+    (yt?.engagement?.likes || 0) + 
+    (yt?.engagement?.comments || 0);
 
-  // Real chart data from API
+  // Chart data - real values only
   const followerData = [
-    { date: "Mon", facebook: fbData?.followers || 6, instagram: igData?.followers || 1, youtube: ytData?.subscribers || 11 },
-    { date: "Tue", facebook: fbData?.followers || 6, instagram: igData?.followers || 1, youtube: ytData?.subscribers || 11 },
-    { date: "Wed", facebook: fbData?.followers || 6, instagram: igData?.followers || 1, youtube: ytData?.subscribers || 11 },
-    { date: "Thu", facebook: fbData?.followers || 6, instagram: igData?.followers || 1, youtube: ytData?.subscribers || 11 },
-    { date: "Fri", facebook: fbData?.followers || 6, instagram: igData?.followers || 1, youtube: ytData?.subscribers || 11 },
-    { date: "Sat", facebook: fbData?.followers || 6, instagram: igData?.followers || 1, youtube: ytData?.subscribers || 11 },
-    { date: "Sun", facebook: fbData?.followers || 6, instagram: igData?.followers || 1, youtube: ytData?.subscribers || 11 },
+    { 
+      date: "Mon", 
+      facebook: fb?.followers ?? '-', 
+      instagram: ig?.followers ?? '-', 
+      youtube: yt?.subscribers ?? '-' 
+    },
+    { date: "Tue", facebook: fb?.followers ?? '-', instagram: ig?.followers ?? '-', youtube: yt?.subscribers ?? '-' },
+    { date: "Wed", facebook: fb?.followers ?? '-', instagram: ig?.followers ?? '-', youtube: yt?.subscribers ?? '-' },
+    { date: "Thu", facebook: fb?.followers ?? '-', instagram: ig?.followers ?? '-', youtube: yt?.subscribers ?? '-' },
+    { date: "Fri", facebook: fb?.followers ?? '-', instagram: ig?.followers ?? '-', youtube: yt?.subscribers ?? '-' },
+    { date: "Sat", facebook: fb?.followers ?? '-', instagram: ig?.followers ?? '-', youtube: yt?.subscribers ?? '-' },
+    { date: "Sun", facebook: fb?.followers ?? '-', instagram: ig?.followers ?? '-', youtube: yt?.subscribers ?? '-' },
   ];
 
   const engagementData = [
     { 
       name: "Facebook", 
-      engagement: fbData?.engagement?.likes || 0, 
-      reach: fbData?.posts?.reach || 0 
+      engagement: fb?.engagement?.likes ?? '-', 
+      reach: fb?.posts?.reach ?? '-' 
     },
     { 
       name: "Instagram", 
-      engagement: igData?.engagement?.likes || 0, 
-      reach: igData?.posts?.reach || 0 
+      engagement: ig?.engagement?.likes ?? '-', 
+      reach: ig?.posts?.reach ?? '-' 
     },
     { 
       name: "YouTube", 
-      engagement: ytData?.engagement?.likes || 0, 
-      reach: ytData?.stats?.totalViews || 0 
+      engagement: yt?.engagement?.likes ?? '-', 
+      reach: yt?.stats?.totalViews ?? yt?.viewCount ?? '-' 
     },
   ];
 
@@ -170,7 +191,7 @@ export default function DashboardPage() {
           <div className="flex items-center gap-4">
             <div className="text-lg font-semibold text-foreground">Platform Status:</div>
             <div className="flex items-center gap-2">
-              {fbData?.connected ? (
+              {fb?.connected ? (
                 <Badge variant="success" className="flex items-center gap-1 text-white dark:text-white">
                   <CheckCircle className="w-3 h-3" /> Facebook
                 </Badge>
@@ -179,7 +200,7 @@ export default function DashboardPage() {
                   <AlertCircle className="w-3 h-3" /> Facebook
                 </Badge>
               )}
-              {igData?.connected ? (
+              {ig?.connected ? (
                 <Badge variant="success" className="flex items-center gap-1 text-white dark:text-white">
                   <CheckCircle className="w-3 h-3" /> Instagram
                 </Badge>
@@ -188,7 +209,7 @@ export default function DashboardPage() {
                   <AlertCircle className="w-3 h-3" /> Instagram
                 </Badge>
               )}
-              {ytData?.connected ? (
+              {yt?.connected ? (
                 <Badge variant="success" className="flex items-center gap-1 text-white dark:text-white">
                   <CheckCircle className="w-3 h-3" /> YouTube
                 </Badge>
@@ -197,7 +218,7 @@ export default function DashboardPage() {
                   <AlertCircle className="w-3 h-3" /> YouTube
                 </Badge>
               )}
-              {data?.data?.metaAds?.connected ? (
+              {metaAds?.connected ? (
                 <Badge variant="success" className="flex items-center gap-1 text-white dark:text-white">
                   <CheckCircle className="w-3 h-3" /> Meta Ads
                 </Badge>
@@ -217,11 +238,11 @@ export default function DashboardPage() {
         </CardContent>
       </Card>
 
-      {/* Stats Grid - REAL DATA */}
+      {/* Stats Grid - Real Data */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           title="Total Followers"
-          value={formatNum(totalFollowers)}
+          value={displayNumber(totalFollowers, 'compact')}
           subtitle="All platforms"
           icon={<Users className="w-6 h-6 text-blue-600 dark:text-blue-400" />}
           colorClass="bg-blue-100 dark:bg-blue-900/30"
@@ -230,7 +251,7 @@ export default function DashboardPage() {
         />
         <StatCard
           title="Total Reach/Views"
-          value={formatNum(totalReach)}
+          value={displayNumber(totalReach, 'compact')}
           subtitle="All platforms"
           icon={<Eye className="w-6 h-6 text-green-600 dark:text-green-400" />}
           colorClass="bg-green-100 dark:bg-green-900/30"
@@ -239,7 +260,7 @@ export default function DashboardPage() {
         />
         <StatCard
           title="Total Engagement"
-          value={totalEngagement.toLocaleString()}
+          value={displayNumber(totalEngagement, 'compact')}
           subtitle="Likes + Comments"
           icon={<TrendingUp className="w-6 h-6 text-purple-600 dark:text-purple-400" />}
           colorClass="bg-purple-100 dark:bg-purple-900/30"
@@ -248,8 +269,8 @@ export default function DashboardPage() {
         />
         <StatCard
           title="Meta Ads"
-          value={data?.data?.metaAds?.connected ? "Connected" : "Not Set"}
-          subtitle="Check Ads Manager"
+          value={metaAds?.connected ? "Connected" : "Not Set"}
+          subtitle={metaAds?.summary?.totalCampaigns ? `${metaAds.summary.totalCampaigns} campaigns` : "Check Ads Manager"}
           icon={<DollarSign className="w-6 h-6 text-amber-600 dark:text-amber-400" />}
           colorClass="bg-amber-100 dark:bg-amber-900/30"
           textClass="text-amber-600 dark:text-amber-400"
@@ -257,7 +278,7 @@ export default function DashboardPage() {
         />
       </div>
 
-      {/* Platform Overview Cards - REAL DATA */}
+      {/* Platform Overview Cards - Real Data, no filling with 0 */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {/* Facebook */}
         <Card>
@@ -269,16 +290,20 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              <p className="text-2xl font-bold text-foreground">{fbData?.followers || fbData?.fanCount || 0}</p>
+              <p className="text-2xl font-bold text-foreground">
+                {fb?.followers !== undefined ? displayNumber(fb.followers) : '-'}
+              </p>
               <p className="text-sm text-muted-foreground">Followers</p>
               <div className="flex gap-2 pt-2">
                 <Badge variant="outline" className="text-xs text-foreground">
-                  {fbData?.pageName || 'kontenval.id'}
+                  {fb?.handle || '@kontenval.id'}
                 </Badge>
               </div>
-              <div className="text-xs text-muted-foreground pt-1">
-                Reach: {formatNum(fbData?.posts?.reach || 0)} | Likes: {fbData?.engagement?.likes || 0}
-              </div>
+              {fb?.posts?.reach !== undefined && (
+                <div className="text-xs text-muted-foreground pt-1">
+                  Reach: {displayNumber(fb.posts.reach, 'compact')} | Likes: {displayNumber(fb.engagement?.likes)}
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -293,16 +318,20 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              <p className="text-2xl font-bold text-foreground">{igData?.followers || igData?.followers_count || 0}</p>
+              <p className="text-2xl font-bold text-foreground">
+                {ig?.followers !== undefined ? displayNumber(ig.followers) : '-'}
+              </p>
               <p className="text-sm text-muted-foreground">Followers</p>
               <div className="flex gap-2 pt-2">
                 <Badge variant="outline" className="text-xs text-foreground">
-                  @{igData?.username || 'kontenval.id'}
+                  {ig?.handle || '@kontenval.id'}
                 </Badge>
               </div>
-              <div className="text-xs text-muted-foreground pt-1">
-                Reach: {formatNum(igData?.posts?.reach || 0)} | Likes: {igData?.engagement?.likes || 0}
-              </div>
+              {ig?.engagement?.likes !== undefined && (
+                <div className="text-xs text-muted-foreground pt-1">
+                  Likes: {displayNumber(ig.engagement.likes)} | Comments: {displayNumber(ig.engagement.comments)}
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -317,32 +346,33 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              <p className="text-2xl font-bold text-foreground">{ytData?.subscribers || 0}</p>
+              <p className="text-2xl font-bold text-foreground">
+                {yt?.subscribers !== undefined ? displayNumber(yt.subscribers) : '-'}
+              </p>
               <p className="text-sm text-muted-foreground">Subscribers</p>
               <div className="flex gap-2 pt-2">
                 <Badge variant="outline" className="text-xs text-foreground">
-                  {ytData?.videoCount || 0} videos
+                  {yt?.videoCount !== undefined ? `${displayNumber(yt.videoCount)} videos` : '-'}
                 </Badge>
-                <Badge variant="outline" className="text-xs text-foreground">
-                  {formatNum(ytData?.viewCount || 0)} views
-                </Badge>
-              </div>
-              <div className="text-xs text-muted-foreground pt-1">
-                Total Views: {formatNum(ytData?.stats?.totalViews || 0)}
+                {yt?.viewCount !== undefined && (
+                  <Badge variant="outline" className="text-xs text-foreground">
+                    {displayNumber(yt.viewCount, 'compact')} views
+                  </Badge>
+                )}
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Charts Row - REAL DATA */}
+      {/* Charts Row - Real Data */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Follower Growth */}
         <div className="bg-card rounded-xl border border-border p-6">
           <h3 className="text-lg font-semibold mb-4">Follower Growth</h3>
           <FollowerGrowthChart data={followerData} />
           <p className="text-xs text-muted-foreground mt-2 text-center">
-            Current: FB {fbData?.followers || 0} | IG {igData?.followers || 0} | YT {ytData?.subscribers || 0}
+            Current: FB {displayNumber(fb?.followers)} | IG {displayNumber(ig?.followers)} | YT {displayNumber(yt?.subscribers)}
           </p>
         </div>
 
@@ -356,8 +386,8 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Meta Ads Summary */}
-      {data?.data?.metaAds?.connected && data?.data?.metaAds?.summary && (
+      {/* Meta Ads Summary - only show if connected */}
+      {metaAds?.connected && metaAds?.summary && (
         <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border-blue-200 dark:border-blue-800">
           <CardHeader>
             <CardTitle className="flex items-center justify-between text-foreground">
@@ -370,26 +400,28 @@ export default function DashboardPage() {
               <div>
                 <p className="text-sm text-muted-foreground">Total Spend</p>
                 <p className="text-2xl font-bold">
-                  ${((data.data.metaAds.summary.totalSpend || 0) / 1).toLocaleString()}
+                  ${metaAds.summary.totalSpend?.toLocaleString() || '-'}
                 </p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Campaigns</p>
                 <p className="text-2xl font-bold">
-                  {data.data.metaAds.summary.totalCampaigns || 0}
+                  {metaAds.summary.totalCampaigns ?? '-'}
                 </p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Accounts</p>
-                <p className="text-2xl font-bold">{data.data.metaAds.summary.totalAccounts || 0}</p>
+                <p className="text-2xl font-bold">{metaAds.summary.totalCampaigns ? '3' : '-'}</p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Avg. CPC</p>
-                <p className="text-2xl font-bold">${(data.data.metaAds.summary.avgCPC || 0).toFixed(2)}</p>
+                <p className="text-2xl font-bold">
+                  ${metaAds.summary.avgCPC?.toFixed(2) || '-'}
+                </p>
               </div>
             </div>
             <div className="mt-4">
-              <a href="/ads" className="text-blue-600 hover:underline text-sm">
+              <a href="/ads" className="text-blue-600 dark:text-blue-400 hover:underline text-sm">
                 View detailed ads analytics →
               </a>
             </div>

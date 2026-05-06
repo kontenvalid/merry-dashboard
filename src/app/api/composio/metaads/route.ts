@@ -2,9 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { getApiKey } from '@/lib/api-key-store'
-import prisma from '@/lib/prisma'
 
-// Meta Ads account IDs
 const META_ADS_ACCOUNTS = [
   { id: 'act_66362051', currency: 'USD', name: 'USD Account' },
   { id: 'act_2180078045608935', currency: 'IDR', name: 'IDR Account 1' },
@@ -21,60 +19,58 @@ export async function GET() {
   const userId = session.user.id || session.user.email
 
   try {
-    // Get API key from database
     const accessToken = await getApiKey(userId, 'meta_graph')
 
     if (!accessToken) {
       return NextResponse.json({
-        success: false,
-        error: 'Meta Ads access token not configured',
+        success: true,
+        connected: false,
+        source: 'not_configured',
         accounts: META_ADS_ACCOUNTS,
-        campaigns: []
+        campaigns: [],
+        summary: null
       })
     }
 
-    // Fetch from Meta Graph API
     const result = await fetchMetaAdsData(accessToken)
 
     return NextResponse.json({
       success: true,
+      connected: result.campaigns.length > 0,
       source: 'meta_graph_api',
       accounts: META_ADS_ACCOUNTS,
       campaigns: result.campaigns,
-      adSets: result.adSets,
-      ads: result.ads,
-      summary: result.summary
+      summary: result.campaigns.length > 0 ? result.summary : null
     })
   } catch (error: any) {
     console.error('Meta Ads API error:', error)
     return NextResponse.json({
       success: false,
+      connected: false,
       error: error.message,
       accounts: META_ADS_ACCOUNTS,
-      campaigns: []
+      campaigns: [],
+      summary: null
     }, { status: 500 })
   }
 }
 
 async function fetchMetaAdsData(accessToken: string) {
   const campaigns: any[] = []
-  const adSets: any[] = []
-  const ads: any[] = []
   let totalSpend = 0
+  let totalImpressions = 0
+  let totalClicks = 0
 
-  // Fetch campaigns from each active account
   for (const account of META_ADS_ACCOUNTS) {
     try {
-      // Get campaigns
       const campaignsRes = await fetch(
-        `https://graph.facebook.com/v21.0/${account.id}/campaigns?fields=id,name,status,objective,daily_budget,lifetime_budget,spend&access_token=${accessToken}`
+        `https://graph.facebook.com/v21.0/${account.id}/campaigns?fields=id,name,status,objective,daily_budget,spend&access_token=${accessToken}`
       )
       
       if (campaignsRes.ok) {
         const data = await campaignsRes.json()
         
         for (const campaign of data.data || []) {
-          // Get campaign insights
           const insightsRes = await fetch(
             `https://graph.facebook.com/v21.0/${campaign.id}/insights?fields=spend,impressions,clicks,cpc,ctr&access_token=${accessToken}`
           )
@@ -85,15 +81,28 @@ async function fetchMetaAdsData(accessToken: string) {
             Object.assign(insights, insightsData.data?.[0] || {})
           }
 
+          const spend = parseFloat(insights.spend || campaign.spend || '0')
+          const impressions = parseInt(insights.impressions || '0')
+          const clicks = parseInt(insights.clicks || '0')
+
           campaigns.push({
             accountId: account.id,
             accountName: account.name,
             currency: account.currency,
-            ...campaign,
-            ...insights
+            id: campaign.id,
+            name: campaign.name,
+            status: campaign.status,
+            objective: campaign.objective,
+            spend,
+            impressions,
+            clicks,
+            cpc: insights.cpc || 0,
+            ctr: insights.ctr || 0
           })
 
-          totalSpend += parseFloat(insights.spend || '0')
+          totalSpend += spend
+          totalImpressions += impressions
+          totalClicks += clicks
         }
       }
     } catch (e) {
@@ -103,13 +112,12 @@ async function fetchMetaAdsData(accessToken: string) {
 
   return {
     campaigns,
-    adSets,
-    ads,
     summary: {
-      totalCampaigns: campaigns.length,
-      totalAccounts: META_ADS_ACCOUNTS.length,
       totalSpend,
-      avgCPC: campaigns.length > 0 ? totalSpend / (campaigns.reduce((acc, c) => acc + (c.clicks || 0), 1)) : 0
+      totalImpressions,
+      totalClicks,
+      totalCampaigns: campaigns.length,
+      avgCPC: totalClicks > 0 ? totalSpend / totalClicks : 0
     }
   }
 }

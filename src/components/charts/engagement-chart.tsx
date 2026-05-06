@@ -14,7 +14,7 @@ import {
 import { useColors } from "../platform-badge";
 
 interface EngagementChartProps {
-  data: { name: string; engagement: number; reach: number }[];
+  data: { name: string; engagement: number | string | null; reach: number | string | null }[];
   className?: string;
 }
 

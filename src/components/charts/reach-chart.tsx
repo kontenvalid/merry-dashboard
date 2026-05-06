@@ -12,7 +12,7 @@ import {
 import { useColors } from "../platform-badge";
 
 interface ReachChartProps {
-  data: { date: string; reach: number; impressions: number; source?: 'real' | 'pattern' }[];
+  data: { date: string; reach: number | string | null; impressions: number | string | null; source?: 'real' | 'pattern' }[];
   className?: string;
 }
 

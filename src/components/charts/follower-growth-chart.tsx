@@ -13,7 +13,7 @@ import {
 import { useColors } from "../platform-badge";
 
 interface FollowerChartProps {
-  data: { date: string; facebook: number; instagram: number; youtube: number }[];
+  data: { date: string; facebook: number | string | null; instagram: number | string | null; youtube: number | string | null }[];
   className?: string;
 }
 
