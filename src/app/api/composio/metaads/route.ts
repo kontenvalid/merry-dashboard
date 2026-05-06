@@ -183,48 +183,26 @@ export async function GET() {
     }
     
     // ========================================
-    // MODE 3: Demo data (final fallback)
+    // MODE 3: No campaigns or no token (NORMAL STATE - no error message)
     // ========================================
     return NextResponse.json({
       connected: false,
       tokenValid: !!metaAccessToken,
-      source: 'demo',
-      error: metaAccessToken 
-        ? 'Graph API returned no campaigns. Try checking your Meta Ads Manager.'
-        : 'Add your long-lived Meta token in Settings to sync real ad data.',
+      source: 'none',
+      hasCampaigns: false,
+      message: metaAccessToken ? 'No active campaigns found in your Meta Ads account' : 'Meta Ads token not configured',
       accounts: META_ADS_ACCOUNTS,
-      setupInstructions: metaAccessToken ? null : {
-        step1: 'Go to https://developers.facebook.com/tools/explorer/',
-        step2: 'Generate token with ads_management, ads_read, business_management permissions',
-        step3: 'Exchange to long-lived (60 days) token',
-        step4: 'Paste token in Settings → Meta Ads Access Token'
-      },
-      demo: {
-        campaigns: [
-          { id: 'camp_1', name: 'Affiliate Promo Campaign', status: 'ACTIVE', spend: 1250000, impressions: 45000, clicks: 890, conversions: 45, ctr: 1.98, roas: 3.2 },
-          { id: 'camp_2', name: 'Digital Product Launch', status: 'ACTIVE', spend: 850000, impressions: 32000, clicks: 560, conversions: 28, ctr: 1.75, roas: 4.1 },
-          { id: 'camp_3', name: 'Brand Awareness', status: 'PAUSED', spend: 500000, impressions: 78000, clicks: 420, conversions: 12, ctr: 0.54, roas: 1.8 }
-        ],
-        daily: [
-          { date: 'Mon', spend: 45000, impressions: 5200, clicks: 89, conversions: 8 },
-          { date: 'Tue', spend: 52000, impressions: 6100, clicks: 105, conversions: 12 },
-          { date: 'Wed', spend: 38000, impressions: 4500, clicks: 78, conversions: 6 },
-          { date: 'Thu', spend: 65000, impressions: 7200, clicks: 125, conversions: 15 },
-          { date: 'Fri', spend: 58000, impressions: 6800, clicks: 98, conversions: 11 },
-          { date: 'Sat', spend: 72000, impressions: 8100, clicks: 145, conversions: 18 },
-          { date: 'Sun', spend: 62000, impressions: 7000, clicks: 112, conversions: 14 }
-        ]
-      },
+      demo: null,  // Don't show demo data when there's no real campaigns
       summary: {
-        totalSpend: 2600000,
-        totalImpressions: 127000,
-        totalConversions: 85,
-        averageCTR: 1.42,
-        averageROAS: 3.03,
-        isDemo: true
+        totalSpend: 0,
+        totalImpressions: 0,
+        totalConversions: 0,
+        averageCTR: 0,
+        averageROAS: 0,
+        isReal: true
       }
     }, {
-      headers: { 'Cache-Control': 'public, s-maxage=300' }
+      headers: { 'Cache-Control': 'no-store' }
     })
     
   } catch (error) {

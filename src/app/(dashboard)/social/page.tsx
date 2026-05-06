@@ -21,11 +21,11 @@ const REAL_ACCOUNTS = {
     link: 'https://www.facebook.com/kontenval.id'
   },
   instagram: {
-    id: 'kontenval.id',
+    id: '27556603287273697',
     name: 'kontenval.id',
     username: '@kontenval.id',
     type: 'Creator',
-    followers: 0,
+    followers: 1,
     mediaCount: 7,
     link: 'https://instagram.com/kontenval.id'
   },

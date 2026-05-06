@@ -93,11 +93,11 @@ export async function GET() {
         },
         instagram: {
           connected: true,
-          username: 'kontenval.id',
-          fullName: 'kontenval.id',
-          followers: 0,
-          followers_count: 0,
-          mediaCount: 7,
+          username: instagramData?.username || instagramData?.name || 'kontenval.id',
+          fullName: instagramData?.fullName || instagramData?.name || 'kontenval.id',
+          followers: instagramData?.followers_count || instagramData?.followers || instagramData?.followersCount || 0,
+          followers_count: instagramData?.followers_count || instagramData?.followers || instagramData?.followersCount || 0,
+          mediaCount: instagramData?.media_count || instagramData?.mediaCount || instagramData?.mediaCount || 7,
           engagement: { likes: 0, comments: 0, saves: 0 },
           posts: { reach: 0, impressions: 0 },
           link: 'https://instagram.com/kontenval.id'

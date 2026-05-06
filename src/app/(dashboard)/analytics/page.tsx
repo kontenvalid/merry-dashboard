@@ -43,7 +43,7 @@ export default function AnalyticsPage() {
   const [loading, setLoading] = useState(true);
   const [accountInfo, setAccountInfo] = useState<Record<string, AccountInfo>>({
     facebook: { name: "kontenval.id", id: "@kontenval.id", followers: 6 },
-    instagram: { name: "kontenval.id", id: "@kontenval.id", followers: 0 },
+    instagram: { name: "kontenval.id", id: "@kontenval.id", followers: 1 },
     youtube: { name: "kontenval id", id: "@kontenvalid", followers: 11 },
   });
   const [historicalData, setHistoricalData] = useState<AnalyticsRecord[]>([]);
@@ -85,7 +85,7 @@ export default function AnalyticsPage() {
             instagram: {
               name: d.instagram?.fullName || d.instagram?.username || 'kontenval.id',
               id: d.instagram?.username ? `@${d.instagram.username}` : '@kontenval.id',
-              followers: d.instagram?.followers_count || 0,
+              followers: d.instagram?.followers_count || d.instagram?.followers || 1,
             },
             youtube: {
               name: d.youtube?.channelName || 'kontenval id',

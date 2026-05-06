@@ -55,27 +55,23 @@ export default function AdsPage() {
         if (response.ok) {
           const data = await response.json();
           
-          if (data.connected) {
+          if (data.connected && data.campaigns?.length > 0) {
             // Real data from Meta Ads API
-            const demo = data.demo;
+            setCampaigns(data.campaigns.map((c: any) => ({
+              name: c.name,
+              status: c.status === 'ACTIVE' ? 'active' : 'paused',
+              budget: c.budget || c.spend * 1.5,
+              spend: c.spend || 0,
+              roas: c.roas || 0,
+              currency: 'IDR'
+            })));
             
-            if (demo?.campaigns) {
-              setCampaigns(demo.campaigns.map((c: any) => ({
-                name: c.name,
-                status: c.status === 'ACTIVE' ? 'active' : 'paused',
-                budget: c.spend * 1.5, // Estimate budget from spend
-                spend: c.spend,
-                roas: c.roas,
-                currency: 'IDR'
-              })));
-            }
-            
-            if (demo?.daily) {
-              setAdData(demo.daily.map((d: any) => ({
-                date: new Date(d.date).toLocaleDateString('en-US', { weekday: 'short' }),
-                spend: d.spend,
-                impressions: d.impressions,
-                clicks: d.clicks
+            if (data.daily) {
+              setAdData(data.daily.map((d: any) => ({
+                date: d.date?.includes(',') ? new Date(d.date).toLocaleDateString('en-US', { weekday: 'short' }) : d.date,
+                spend: d.spend || 0,
+                impressions: d.impressions || 0,
+                clicks: d.clicks || 0
               })));
             }
             
@@ -88,22 +84,30 @@ export default function AdsPage() {
                 currency: 'IDR'
               });
             }
-          } else if (data.error) {
-            setApiError(data.error);
-            // Use demo data when API is disconnected
-            const demo = data.demo;
-            if (demo?.campaigns) {
-              setCampaigns(demo.campaigns.map((c: any) => ({
-                name: c.name,
-                status: c.status === 'ACTIVE' ? 'active' : 'paused',
-                budget: c.spend * 1.5,
-                spend: c.spend,
-                roas: c.roas,
-                currency: 'IDR'
-              })));
-            }
-            if (demo?.daily) {
-              setAdData(demo.daily.map((d: any) => ({
+          } else if (data.hasCampaigns === false && !data.demo) {
+            // Normal state: no campaigns, no demo data - show empty state
+            setCampaigns([]);
+            setAdData([]);
+            setApiError(null);
+            setAdStats({
+              totalSpend: 0,
+              impressions: 0,
+              clicks: 0,
+              roas: 0,
+              currency: 'IDR'
+            });
+          } else if (data.demo?.campaigns) {
+            // Fallback to demo data if exists (only for debugging)
+            setCampaigns(data.demo.campaigns.map((c: any) => ({
+              name: c.name,
+              status: c.status === 'ACTIVE' ? 'active' : 'paused',
+              budget: c.spend * 1.5,
+              spend: c.spend,
+              roas: c.roas,
+              currency: 'IDR'
+            })));
+            if (data.demo.daily) {
+              setAdData(data.demo.daily.map((d: any) => ({
                 date: new Date(d.date).toLocaleDateString('en-US', { weekday: 'short' }),
                 spend: d.spend,
                 impressions: d.impressions,
@@ -139,42 +143,39 @@ export default function AdsPage() {
       if (response.ok) {
         const data = await response.json();
         
-        const demo = data.demo || data;
-        
-        if (demo?.campaigns) {
-          setCampaigns(demo.campaigns.map((c: any) => ({
+        if (data.connected && data.campaigns?.length > 0) {
+          setCampaigns(data.campaigns.map((c: any) => ({
             name: c.name,
             status: c.status === 'ACTIVE' ? 'active' : 'paused',
-            budget: c.spend * 1.5,
-            spend: c.spend,
-            roas: c.roas,
+            budget: c.budget || c.spend * 1.5,
+            spend: c.spend || 0,
+            roas: c.roas || 0,
             currency: 'IDR'
           })));
-        }
-        
-        if (demo?.daily) {
-          setAdData(demo.daily.map((d: any) => ({
-            date: new Date(d.date).toLocaleDateString('en-US', { weekday: 'short' }),
-            spend: d.spend,
-            impressions: d.impressions,
-            clicks: d.clicks
-          })));
-        }
-        
-        if (data.summary) {
-          setAdStats({
-            totalSpend: data.summary.totalSpend || 0,
-            impressions: data.summary.totalImpressions || 0,
-            clicks: data.summary.totalConversions || 0,
-            roas: data.summary.averageROAS || 0,
-            currency: 'IDR'
-          });
-        }
-        
-        if (data.error) {
-          setApiError(data.error);
-        } else {
+          if (data.daily) {
+            setAdData(data.daily.map((d: any) => ({
+              date: d.date?.includes(',') ? new Date(d.date).toLocaleDateString('en-US', { weekday: 'short' }) : d.date,
+              spend: d.spend || 0,
+              impressions: d.impressions || 0,
+              clicks: d.clicks || 0
+            })));
+          }
+          if (data.summary) {
+            setAdStats({
+              totalSpend: data.summary.totalSpend || 0,
+              impressions: data.summary.totalImpressions || 0,
+              clicks: data.summary.totalConversions || 0,
+              roas: data.summary.averageROAS || 0,
+              currency: 'IDR'
+            });
+          }
           setApiError(null);
+        } else if (data.hasCampaigns === false && !data.demo) {
+          // Normal state: no campaigns, no demo data
+          setCampaigns([]);
+          setAdData([]);
+          setApiError(null);
+          setAdStats({ totalSpend: 0, impressions: 0, clicks: 0, roas: 0, currency: 'IDR' });
         }
       }
     } catch (error) {
@@ -240,12 +241,12 @@ export default function AdsPage() {
         </div>
       </div>
 
-      {/* API Error Alert */}
-      {apiError && (
+      {/* API Error Alert - Only show when there's ACTUAL error, not just no campaigns */}
+      {apiError && !apiError.includes('no campaigns') && (
         <Card className="border-amber-200 bg-amber-50 dark:bg-amber-900/20">
           <CardContent className="flex items-center gap-2 py-3">
             <AlertCircle className="w-5 h-5 text-amber-500" />
-            <span className="text-amber-600 text-sm">{apiError} - Showing demo data</span>
+            <span className="text-amber-600 text-sm">{apiError}</span>
           </CardContent>
         </Card>
       )}
