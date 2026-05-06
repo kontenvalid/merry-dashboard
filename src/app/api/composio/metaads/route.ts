@@ -1,239 +1,115 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { getMetaAccessToken } from '@/lib/meta-token'
+import { getApiKey } from '@/lib/api-key-store'
+import prisma from '@/lib/prisma'
 
-// Meta Ads account IDs  
+// Meta Ads account IDs
 const META_ADS_ACCOUNTS = [
-  { id: 'act_66362051', currency: 'IDR', name: 'Satria Ady Chandra', status: 'disabled' },
-  { id: 'act_2180078045608935', currency: 'IDR', name: 'Satria Ady Chandra', status: 'active' },
-  { id: 'act_1985101938922115', currency: 'IDR', name: 'Barqun', status: 'active' }
+  { id: 'act_66362051', currency: 'USD', name: 'USD Account' },
+  { id: 'act_2180078045608935', currency: 'IDR', name: 'IDR Account 1' },
+  { id: 'act_1985101938922115', currency: 'IDR', name: 'Barqun Account' }
 ]
 
 export async function GET() {
-  try {
-    const session = await getServerSession(authOptions)
-    const userEmail = session?.user?.email || 'demo@kontenvalid.com'
-    
-    // Get user's stored Meta token (from env or user store)
-    const metaAccessToken = getMetaAccessToken(userEmail)
-    const activeAccounts = META_ADS_ACCOUNTS.filter(a => a.status === 'active')
-    
-    // ========================================
-    // MODE 1: Graph API FIRST (Primary)
-    // ========================================
-    if (metaAccessToken) {
-      let allCampaigns: any[] = []
-      let allDailyData: any[] = []
-      let totalSpend = 0
-      let totalImpressions = 0
-      let totalConversions = 0
+  const session = await getServerSession(authOptions)
+  
+  if (!session?.user?.email) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
 
-      for (const account of activeAccounts) {
-        try {
-          // Get campaigns for this account
-          const campaignsData = await fetchFacebookData(
-            `/v18.0/${account.id}/campaigns`,
-            metaAccessToken,
-            'id,name,status,objective,daily_budget,lifetime_budget,spend'
-          )
-          
-          if (campaignsData?.data?.length > 0) {
-            for (const campaign of campaignsData.data) {
-              // Get insights for each campaign
-              const insightsData = await fetchFacebookData(
-                `/v18.0/${campaign.id}/insights`,
-                metaAccessToken,
-                'spend,impressions,clicks,reach,actions',
-                'date_preset=last_7d'
-              )
-              
-              // Calculate conversions
-              let conversions = 0
-              if (insightsData?.data?.[0]) {
-                const insight = insightsData.data[0]
-                conversions = insight.actions?.find((a: any) => 
-                  a.action_type.includes('purchase') || a.action_type.includes('lead')
-                )?.value || 0
-                if (typeof conversions === 'string') conversions = parseInt(conversions)
-              }
-              
-              const campaignSpend = parseFloat(campaign.spend || 0)
-              const campaignImpressions = parseInt(insightsData?.data?.[0]?.impressions || 0)
-              const campaignClicks = parseInt(insightsData?.data?.[0]?.clicks || 0)
-              
-              allCampaigns.push({
-                id: campaign.id,
-                name: campaign.name,
-                status: campaign.status === 'ACTIVE' ? 'active' : 'paused',
-                objective: campaign.objective,
-                budget: campaign.daily_budget || campaign.lifetime_budget || 0,
-                spend: campaignSpend,
-                impressions: campaignImpressions,
-                clicks: campaignClicks,
-                conversions: conversions,
-                ctr: campaignImpressions > 0 ? ((campaignClicks / campaignImpressions) * 100).toFixed(2) : 0,
-                roas: campaignSpend > 0 ? (conversions * 100000 / campaignSpend).toFixed(2) : 0,
-                accountId: account.id,
-                accountName: account.name
-              })
-              
-              totalSpend += campaignSpend
-              totalImpressions += campaignImpressions
-              totalConversions += conversions
-            }
-          }
-          
-          // Get daily insights for account
-          const dailyData = await fetchFacebookData(
-            `/v18.0/${account.id}/insights`,
-            metaAccessToken,
-            'spend,impressions,clicks,reach,date_start,date_stop,actions',
-            'date_preset=last_7d'
-          )
-          
-          if (dailyData?.data) {
-            allDailyData.push(...dailyData.data)
-          }
-        } catch (e) {
-          console.warn(`Failed to fetch data for account ${account.id}:`, e)
-        }
-      }
-      
-      // Remove duplicates and sort daily data by date
-      const uniqueDaily = allDailyData.filter((item, index, self) => 
-        index === self.findIndex(t => t.date_start === item.date_start)
-      ).sort((a, b) => new Date(a.date_start).getTime() - new Date(b.date_start).getTime())
-      
-      // If we have real data, return it
-      if (allCampaigns.length > 0) {
-        return NextResponse.json({
-          source: 'facebook_graph_api',
-          connected: true,
-          tokenValid: true,
-          accounts: META_ADS_ACCOUNTS,
-          campaigns: allCampaigns,
-          daily: uniqueDaily.map(d => ({
-            date: new Date(d.date_start).toLocaleDateString('en-US', { weekday: 'short' }),
-            spend: parseFloat(d.spend || 0),
-            impressions: parseInt(d.impressions || 0),
-            clicks: parseInt(d.clicks || 0),
-            conversions: d.actions?.find((a: any) => a.action_type.includes('purchase'))?.value || 0
-          })),
-          summary: {
-            totalSpend,
-            totalImpressions,
-            totalConversions,
-            averageCTR: totalImpressions > 0 ? ((totalConversions / totalImpressions) * 100).toFixed(2) : 0,
-            averageROAS: totalSpend > 0 ? (totalConversions * 100000 / totalSpend).toFixed(2) : 0
-          }
-        }, {
-          headers: { 'Cache-Control': 'no-store' }
-        })
-      }
-      
-      // Token is valid but no campaigns found - try Composio as fallback
-      console.log('Graph API: No campaigns found, trying Composio...')
+  const userId = session.user.id || session.user.email
+
+  try {
+    // Get API key from database
+    const accessToken = await getApiKey(userId, 'meta_graph')
+
+    if (!accessToken) {
+      return NextResponse.json({
+        success: false,
+        error: 'Meta Ads access token not configured',
+        accounts: META_ADS_ACCOUNTS,
+        campaigns: []
+      })
     }
-    
-    // ========================================
-    // MODE 2: Composio FALLBACK
-    // ========================================
-    try {
-      const composioKey = process.env.COMPOSIO_API_KEY
-      if (composioKey && composioKey !== 'your-composio-api-key-here') {
-        const response = await fetch('https://backend.composio.dev/v3/mcp', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${composioKey}`,
-            'x-api-key': composioKey,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            jsonrpc: '2.0',
-            id: 1,
-            method: 'tools/call',
-            params: {
-              name: 'get_meta_ads_performance',
-              arguments: { account_ids: activeAccounts.map(a => a.id) }
-            }
-          })
-        })
-        
-        if (response.ok) {
-          const data = await response.json()
-          const composioData = data.result || data
-          
-          if (composioData?.campaigns?.length > 0) {
-            return NextResponse.json({
-              source: 'composio',
-              connected: true,
-              accounts: META_ADS_ACCOUNTS,
-              campaigns: composioData.campaigns,
-              daily: composioData.daily || [],
-              summary: composioData.summary
-            }, {
-              headers: { 'Cache-Control': 'no-store' }
-            })
-          }
-        }
-      }
-    } catch (e) {
-      console.log('Composio not available for Meta Ads, will use demo data')
-    }
-    
-    // ========================================
-    // MODE 3: No campaigns or no token (NORMAL STATE - no error message)
-    // ========================================
+
+    // Fetch from Meta Graph API
+    const result = await fetchMetaAdsData(accessToken)
+
     return NextResponse.json({
-      connected: false,
-      tokenValid: !!metaAccessToken,
-      source: 'none',
-      hasCampaigns: false,
-      message: metaAccessToken ? 'No active campaigns found in your Meta Ads account' : 'Meta Ads token not configured',
+      success: true,
+      source: 'meta_graph_api',
       accounts: META_ADS_ACCOUNTS,
-      demo: null,  // Don't show demo data when there's no real campaigns
-      summary: {
-        totalSpend: 0,
-        totalImpressions: 0,
-        totalConversions: 0,
-        averageCTR: 0,
-        averageROAS: 0,
-        isReal: true
-      }
-    }, {
-      headers: { 'Cache-Control': 'no-store' }
+      campaigns: result.campaigns,
+      adSets: result.adSets,
+      ads: result.ads,
+      summary: result.summary
     })
-    
-  } catch (error) {
-    console.error('Meta Ads sync error:', error)
+  } catch (error: any) {
+    console.error('Meta Ads API error:', error)
     return NextResponse.json({
-      connected: false,
-      error: 'Failed to sync Meta Ads',
-      accounts: META_ADS_ACCOUNTS
+      success: false,
+      error: error.message,
+      accounts: META_ADS_ACCOUNTS,
+      campaigns: []
     }, { status: 500 })
   }
 }
 
-// Helper to fetch from Facebook Graph API
-async function fetchFacebookData(endpoint: string, accessToken: string, fields: string, extraParams?: string): Promise<any> {
-  const params = new URLSearchParams({
-    access_token: accessToken,
-    fields
-  })
-  if (extraParams) {
-    const [key, value] = extraParams.split('=')
-    if (key && value) params.append(key, value)
+async function fetchMetaAdsData(accessToken: string) {
+  const campaigns: any[] = []
+  const adSets: any[] = []
+  const ads: any[] = []
+  let totalSpend = 0
+
+  // Fetch campaigns from each active account
+  for (const account of META_ADS_ACCOUNTS) {
+    try {
+      // Get campaigns
+      const campaignsRes = await fetch(
+        `https://graph.facebook.com/v21.0/${account.id}/campaigns?fields=id,name,status,objective,daily_budget,lifetime_budget,spend&access_token=${accessToken}`
+      )
+      
+      if (campaignsRes.ok) {
+        const data = await campaignsRes.json()
+        
+        for (const campaign of data.data || []) {
+          // Get campaign insights
+          const insightsRes = await fetch(
+            `https://graph.facebook.com/v21.0/${campaign.id}/insights?fields=spend,impressions,clicks,cpc,ctr&access_token=${accessToken}`
+          )
+          
+          const insights: any = {}
+          if (insightsRes.ok) {
+            const insightsData = await insightsRes.json()
+            Object.assign(insights, insightsData.data?.[0] || {})
+          }
+
+          campaigns.push({
+            accountId: account.id,
+            accountName: account.name,
+            currency: account.currency,
+            ...campaign,
+            ...insights
+          })
+
+          totalSpend += parseFloat(insights.spend || '0')
+        }
+      }
+    } catch (e) {
+      console.warn(`Failed to fetch campaigns for ${account.id}:`, e)
+    }
   }
-  
-  const response = await fetch(`https://graph.facebook.com${endpoint}?${params}`, {
-    next: { revalidate: 0 }
-  })
-  
-  if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.error?.message || 'Facebook API error')
+
+  return {
+    campaigns,
+    adSets,
+    ads,
+    summary: {
+      totalCampaigns: campaigns.length,
+      totalAccounts: META_ADS_ACCOUNTS.length,
+      totalSpend,
+      avgCPC: campaigns.length > 0 ? totalSpend / (campaigns.reduce((acc, c) => acc + (c.clicks || 0), 1)) : 0
+    }
   }
-  
-  return response.json()
 }

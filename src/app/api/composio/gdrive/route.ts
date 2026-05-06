@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { getConsumerApiKey } from '@/lib/composio-store'
-import { getDashboardSettings } from '@/app/api/settings/route'
+import { getApiKey } from '@/lib/api-key-store'
+import prisma from '@/lib/prisma'
 
 // Default GDrive folder ID (used for display link only)
 const DEFAULT_GDRIVE_FOLDER_ID = '1iTAz2sMPMJro0svMXcrDrGJGZAu8ixCF'
@@ -10,15 +10,23 @@ const DEFAULT_GDRIVE_FOLDER_ID = '1iTAz2sMPMJro0svMXcrDrGJGZAu8ixCF'
 export async function GET() {
   try {
     const session = await getServerSession(authOptions)
-    const userEmail = session?.user?.email || 'demo@kontenvalid.com'
     
-    // Get API key from store
-    const apiKey = getConsumerApiKey(userEmail) || process.env.COMPOSIO_API_KEY
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const userId = session.user.id || session.user.email
     
-    // Get dynamic folder ID from settings
-    const settings = getDashboardSettings()
-    const folderId = settings.gdriveFolderId || DEFAULT_GDRIVE_FOLDER_ID
-    const folderName = settings.gdriveFolderName || 'Ebook'
+    // Get API key from database
+    const apiKey = await getApiKey(userId, 'composio')
+    
+    // Get user's GDrive folder settings
+    let settings = await prisma.dashboardSettings.findUnique({
+      where: { userId }
+    })
+    
+    const folderId = settings?.timezone || DEFAULT_GDRIVE_FOLDER_ID // abuse timezone field for folder ID
+    const folderName = 'Products'
 
     // Try to fetch from Composio
     let files: any[] = []
@@ -48,33 +56,9 @@ export async function GET() {
       }
     }
 
-    // If no real data, return empty state
-    if (!connected || files.length === 0) {
-      return NextResponse.json({
-        connected: false,
-        folder: {
-          id: folderId,
-          name: folderName,
-          link: `https://drive.google.com/drive/folders/${folderId}`
-        },
-        files: [],
-        summary: {
-          totalFiles: 0,
-          totalSize: 0,
-          pdfCount: 0,
-          docCount: 0
-        },
-        message: 'No digital products found. Add files to Google Drive.'
-      }, {
-        headers: {
-          'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600'
-        }
-      })
-    }
-
-    // Return real data
+    // Return response
     return NextResponse.json({
-      connected: true,
+      connected,
       folder: {
         id: folderId,
         name: folderName,

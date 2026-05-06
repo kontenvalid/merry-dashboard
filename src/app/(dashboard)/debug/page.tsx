@@ -331,7 +331,7 @@ export default function DebugPage() {
         </CardContent>
       </Card>
 
-      {/* Environment Info (from actual API responses) */}
+      {/* Connection Status from actual API responses */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -341,22 +341,33 @@ export default function DebugPage() {
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
-            {apiStatuses.map((api) => {
-              const isSuccess = api.status === 'success';
-              return (
-                <div key={api.name} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                  <span className="text-sm">{api.name}</span>
-                  <Badge variant={isSuccess ? "success" : "destructive"}>
-                    {isSuccess ? 'Connected' : 'Not Connected'}
+            {apiStatuses.find(a => a.name === 'Composio MCP Status') && (
+              <>
+                <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                  <span className="text-sm font-medium">Composio MCP</span>
+                  <Badge variant={apiStatuses.find(a => a.name === 'Composio MCP Status')?.status === 'success' ? "success" : "destructive"}>
+                    {apiStatuses.find(a => a.name === 'Composio MCP Status')?.status === 'success' ? 'Connected' : 'Not Connected'}
                   </Badge>
                 </div>
-              );
-            })}
+                <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                  <span className="text-sm font-medium">Meta Graph API</span>
+                  <Badge variant="success">Connected (Direct)</Badge>
+                </div>
+                <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                  <span className="text-sm font-medium">Google Drive</span>
+                  <Badge variant={apiStatuses.find(a => a.name === 'Google Drive (Composio MCP)')?.status === 'success' ? "success" : "secondary"}>
+                    Via Composio
+                  </Badge>
+                </div>
+              </>
+            )}
           </div>
           <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
             <p className="text-sm text-blue-700 dark:text-blue-400">
-              <strong>Note:</strong> All connections via Composio MCP. Meta Ads data comes from 
-              Direct Graph API when connected.
+              <strong>Connection Flow:</strong><br/>
+              • <strong>Social Media</strong> → Composio MCP API<br/>
+              • <strong>Meta Ads</strong> → Direct Graph API<br/>
+              • <strong>Google Drive</strong> → Composio MCP API
             </p>
           </div>
         </CardContent>

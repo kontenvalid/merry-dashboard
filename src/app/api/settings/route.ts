@@ -1,53 +1,43 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-
-// Settings storage (in production, use database or KV store)
-// Note: Meta Ads connection priority: Meta Graph API > Composio Meta Ads
-// Note: GDrive folder ID is dynamic - can be updated via settings
-let dashboardSettings = {
-  composioApiKey: '',
-  composioApiKeySet: false,
-  // Meta Ads settings - token stored in meta-token.ts, configs here
-  metaAdsAccountIds: [
-    'act_66362051', // IDR - disabled
-    'act_2180078045608935', // IDR - active
-    'act_1985101938922115' // IDR - Barqun
-  ],
-  // Google Drive settings - folder ID is dynamic
-  gdriveFolderId: '1iTAz2sMPMJro0svMXcrDrGJGZAu8ixCF',
-  gdriveFolderName: 'Ebook',
-  // UI settings
-  theme: 'system',
-  language: 'en',
-  timezone: 'Asia/Bangkok',
-  autoSync: true,
-  syncInterval: 60, // minutes
-}
-
-// Export settings for use by other modules
-export function getDashboardSettings() {
-  return { ...dashboardSettings }
-}
-
-export function updateDashboardSettings(updates: Partial<typeof dashboardSettings>) {
-  dashboardSettings = { ...dashboardSettings, ...updates }
-}
+import prisma from '@/lib/prisma'
+import { saveApiKey, getApiKey, hasApiKey } from '@/lib/api-key-store'
 
 // GET - Get dashboard settings
 export async function GET() {
   const session = await getServerSession(authOptions)
   
-  if (!session) {
+  if (!session?.user?.email) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  // Don't expose the actual API key, just whether it's set
+  const userId = session.user.id || session.user.email
+
+  // Get dashboard settings from database
+  let settings = await prisma.dashboardSettings.findUnique({
+    where: { userId }
+  })
+
+  // Create default settings if not exists
+  if (!settings) {
+    settings = await prisma.dashboardSettings.create({
+      data: { userId }
+    })
+  }
+
+  // Check API key status (don't expose the actual key)
+  const composioConnected = await hasApiKey(userId, 'composio')
+  const metaConnected = await hasApiKey(userId, 'meta_graph')
+
   return NextResponse.json({
     success: true,
     settings: {
-      ...dashboardSettings,
-      composioApiKey: dashboardSettings.composioApiKeySet ? '••••••••••••••••' : ''
+      theme: settings.theme,
+      language: settings.language,
+      timezone: settings.timezone,
+      composioConnected,
+      metaConnected
     }
   })
 }
@@ -56,46 +46,60 @@ export async function GET() {
 export async function PUT(request: Request) {
   const session = await getServerSession(authOptions)
   
-  if (!session) {
+  if (!session?.user?.email) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+
+  const userId = session.user.id || session.user.email
 
   try {
     const body = await request.json()
     const { 
-      composioApiKey, 
       theme, 
       language, 
-      timezone, 
-      autoSync, 
-      syncInterval,
+      timezone,
+      composioApiKey,
+      metaAccessToken,
+      metaAdsAccountIds,
       gdriveFolderId,
-      gdriveFolderName,
-      metaAdsAccountIds
+      gdriveFolderName
     } = body
 
-    // Update settings
-    if (composioApiKey !== undefined) {
-      dashboardSettings.composioApiKey = composioApiKey
-      dashboardSettings.composioApiKeySet = composioApiKey.length > 0
+    // Update dashboard settings
+    await prisma.dashboardSettings.upsert({
+      where: { userId },
+      update: {
+        theme: theme || 'system',
+        language: language || 'en',
+        timezone: timezone || 'Asia/Bangkok'
+      },
+      create: {
+        userId,
+        theme: theme || 'system',
+        language: language || 'en',
+        timezone: timezone || 'Asia/Bangkok'
+      }
+    })
+
+    // Save API keys if provided
+    if (composioApiKey) {
+      await saveApiKey(userId, 'composio', composioApiKey, { 
+        addedAt: new Date().toISOString() 
+      })
     }
-    if (theme !== undefined) dashboardSettings.theme = theme
-    if (language !== undefined) dashboardSettings.language = language
-    if (timezone !== undefined) dashboardSettings.timezone = timezone
-    if (autoSync !== undefined) dashboardSettings.autoSync = autoSync
-    if (syncInterval !== undefined) dashboardSettings.syncInterval = syncInterval
-    if (gdriveFolderId !== undefined) dashboardSettings.gdriveFolderId = gdriveFolderId
-    if (gdriveFolderName !== undefined) dashboardSettings.gdriveFolderName = gdriveFolderName
-    if (metaAdsAccountIds !== undefined) dashboardSettings.metaAdsAccountIds = metaAdsAccountIds
+
+    if (metaAccessToken) {
+      await saveApiKey(userId, 'meta_graph', metaAccessToken, {
+        addedAt: new Date().toISOString()
+      })
+    }
 
     return NextResponse.json({
       success: true,
-      settings: {
-        ...dashboardSettings,
-        composioApiKey: dashboardSettings.composioApiKeySet ? '••••••••••••••••' : ''
-      }
+      message: 'Settings saved'
     })
-  } catch {
-    return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
+  } catch (error) {
+    console.error('Settings update error:', error)
+    return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
   }
 }

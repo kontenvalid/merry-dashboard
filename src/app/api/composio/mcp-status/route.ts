@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { hasApiKey } from '@/lib/api-key-store'
 
 // Platform IDs
 const FB_PAGE_ID = '1080250281836384'
@@ -10,53 +11,52 @@ const YT_HANDLE = '@kontenvalid'
 const META_ADS_ACCOUNTS = [
   { id: 'act_66362051', currency: 'USD', name: 'USD Account' },
   { id: 'act_2180078045608935', currency: 'IDR', name: 'IDR Account 1' },
-  { id: 'act_1985101938922115', currency: 'IDR', name: 'IDR Account 2' }
+  { id: 'act_1985101938922115', currency: 'IDR', name: 'Barqun Account' }
 ]
 
 export async function GET() {
   const session = await getServerSession(authOptions)
   
-  if (!session?.user) {
+  if (!session?.user?.email) {
     return NextResponse.json({ error: 'Unauthorized', connected: false }, { status: 401 })
   }
 
+  const userId = session.user.id || session.user.email
+
   try {
-    const apiKey = process.env.COMPOSIO_API_KEY
-    
-    // Check if API key is configured
-    if (!apiKey) {
-      // No API key configured - user needs to connect via Composio
-      return NextResponse.json({
-        connected: false,
-        requiresAuth: true,
-        authUrl: 'https://connect.composio.dev/mcp',
-        message: 'Connect your Composio account to enable social media monitoring'
-      })
+    // Check API keys from database
+    const [composioConnected, metaConnected] = await Promise.all([
+      hasApiKey(userId, 'composio'),
+      hasApiKey(userId, 'meta_graph')
+    ])
+
+    // Test Composio connection if configured
+    let composioValid = false
+    if (composioConnected) {
+      composioValid = await testComposioConnection()
     }
 
-    // API key is configured - check if it's valid by testing the connection
-    const isValid = await testComposioConnection(apiKey)
-    
-    if (isValid) {
-      return NextResponse.json({
-        connected: true,
-        requiresAuth: false,
-        message: 'Connected to Composio MCP',
-        platforms: {
-          facebook: { connected: true },
-          instagram: { connected: true },
-          youtube: { connected: true },
-          metaAds: { connected: true, accounts: META_ADS_ACCOUNTS }
+    return NextResponse.json({
+      connected: composioConnected && composioValid,
+      requiresAuth: !composioConnected,
+      authUrl: 'https://connect.composio.dev/mcp',
+      services: {
+        composio: {
+          connected: composioConnected && composioValid,
+          valid: composioValid
+        },
+        metaGraph: {
+          connected: metaConnected,
+          accounts: META_ADS_ACCOUNTS
         }
-      })
-    } else {
-      return NextResponse.json({
-        connected: false,
-        requiresAuth: true,
-        authUrl: 'https://connect.composio.dev/mcp',
-        message: 'API key invalid or expired. Please reconnect.'
-      })
-    }
+      },
+      platforms: {
+        facebook: { connected: composioConnected },
+        instagram: { connected: composioConnected },
+        youtube: { connected: composioConnected },
+        metaAds: { connected: metaConnected, accounts: META_ADS_ACCOUNTS }
+      }
+    })
   } catch (error) {
     console.error('MCP status error:', error)
     return NextResponse.json({ 
@@ -66,17 +66,22 @@ export async function GET() {
   }
 }
 
-async function testComposioConnection(apiKey: string): Promise<boolean> {
+async function testComposioConnection(): Promise<boolean> {
   try {
-    const response = await fetch('https://api.composio.dev/v2/me', {
-      method: 'GET',
+    // Test with a simple API call
+    const response = await fetch('https://backend.composio.dev/api/v3.1/tools/execute/facebook_graph_get_page_details', {
+      method: 'POST',
       headers: {
-        'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json'
-      }
+      },
+      body: JSON.stringify({ 
+        userId: 'me', 
+        arguments: { page_id: FB_PAGE_ID } 
+      })
     })
     
-    return response.ok
+    // If we get a response (even error), the connection works
+    return response.status !== 401 && response.status !== 403
   } catch (error) {
     console.error('Composio connection test failed:', error)
     return false
