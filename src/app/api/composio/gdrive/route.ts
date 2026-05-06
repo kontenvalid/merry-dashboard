@@ -4,7 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { getConsumerApiKey } from '@/lib/composio-store'
 import { getDashboardSettings } from '@/app/api/settings/route'
 
-// Default GDrive folder ID (used as fallback when not set in settings)
+// Default GDrive folder ID (used for display link only)
 const DEFAULT_GDRIVE_FOLDER_ID = '1iTAz2sMPMJro0svMXcrDrGJGZAu8ixCF'
 
 export async function GET() {
@@ -26,9 +26,21 @@ export async function GET() {
 
     if (apiKey) {
       try {
-        const result = await fetchFromComposio(apiKey, folderId)
+        // Search from root My Drive (all files, not just in folder)
+        const result = await fetchFromComposio(apiKey)
+        
         if (result.files && result.files.length > 0) {
-          files = result.files
+          // Filter for digital product files (exclude folders and certain files)
+          files = result.files.filter((f: any) => {
+            // Exclude folders
+            if (f.mimeType?.includes('folder')) return false
+            // Exclude video files
+            if (f.mimeType?.includes('video')) return false
+            // Exclude image files (profile pictures etc)
+            if (f.mimeType?.includes('image') && f.name?.toLowerCase().includes('profile')) return false
+            // Include documents, spreadsheets, PDFs
+            return true
+          })
           connected = true
         }
       } catch (e) {
@@ -52,7 +64,7 @@ export async function GET() {
           pdfCount: 0,
           docCount: 0
         },
-        message: 'Google Drive folder is empty or not connected. Upload files to Composio/Ebook folder in Google Drive.'
+        message: 'No digital products found. Add files to Google Drive.'
       }, {
         headers: {
           'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600'
@@ -71,9 +83,9 @@ export async function GET() {
       files,
       summary: {
         totalFiles: files.length,
-        totalSize: files.reduce((acc, f) => acc + (f.size || 0), 0),
-        pdfCount: files.filter(f => f.mimeType?.includes('pdf')).length,
-        docCount: files.filter(f => !f.mimeType?.includes('pdf')).length
+        totalSize: files.reduce((acc: number, f: any) => acc + (f.size || 0), 0),
+        pdfCount: files.filter((f: any) => f.mimeType?.includes('pdf')).length,
+        docCount: files.filter((f: any) => f.mimeType?.includes('document') || f.mimeType?.includes('word')).length
       }
     }, {
       headers: {
@@ -90,9 +102,9 @@ export async function GET() {
   }
 }
 
-async function fetchFromComposio(apiKey: string, folderId: string) {
-  // Call Composio Google Drive tool
-  const response = await fetch('https://backend.composio.dev/v3/mcp', {
+async function fetchFromComposio(apiKey: string) {
+  // Call Composio Google Drive tool - search all files from root My Drive
+  const response = await fetch('https://backend.composio.dev/api/v3.1/tools/execute/GOOGLEDRIVE_FIND_FILE', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${apiKey}`,
@@ -100,15 +112,12 @@ async function fetchFromComposio(apiKey: string, folderId: string) {
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      jsonrpc: '2.0',
-      id: 1,
-      method: 'tools/call',
-      params: {
-        name: 'list_google_drive_files',
-        arguments: {
-          folder_id: folderId,
-          order_by: 'modified_time desc'
-        }
+      userId: 'me',
+      arguments: {
+        q: "trashed = false",
+        fields: "files(id,name,mimeType,size,modifiedTime,webViewLink)",
+        orderBy: "modifiedTime desc",
+        pageSize: 100
       }
     })
   })
@@ -118,5 +127,5 @@ async function fetchFromComposio(apiKey: string, folderId: string) {
   }
 
   const data = await response.json()
-  return data.result || data
+  return data.data || data
 }
