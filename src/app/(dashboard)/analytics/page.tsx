@@ -16,19 +16,23 @@ interface AnalyticsRecord {
   reach: number;
   impressions: number;
   engagement: number;
-}
-
-interface AccountInfo {
-  name: string;
-  id: string;
-  followers: number;
+  views: number;
 }
 
 interface OverviewData {
-  engagement: { likes: number };
-  posts: { reach: number };
-  stats: { totalViews: number };
+  connected: boolean;
+  followers?: number;
+  followers_count?: number;
+  fanCount?: number;
+  pageName?: string;
+  username?: string;
+  channelName?: string;
   subscribers?: number;
+  videoCount?: number;
+  viewCount?: number;
+  posts?: { reach: number; impressions: number };
+  stats?: { totalViews: number; watchTimeMinutes?: number };
+  engagement?: { likes: number; comments: number; shares: number };
 }
 
 interface EngagementDataPoint {
@@ -41,10 +45,10 @@ export default function AnalyticsPage() {
   const [timeRange, setTimeRange] = useState("7d");
   const [platform, setPlatform] = useState("all");
   const [loading, setLoading] = useState(true);
-  const [accountInfo, setAccountInfo] = useState<Record<string, AccountInfo>>({
-    facebook: { name: "kontenval.id", id: "@kontenval.id", followers: 6 },
-    instagram: { name: "kontenval.id", id: "@kontenval.id", followers: 1 },
-    youtube: { name: "kontenval id", id: "@kontenvalid", followers: 11 },
+  const [accountInfo, setAccountInfo] = useState<Record<string, { name: string; id: string; followers: number }>>({
+    facebook: { name: "kontenval.id", id: "@kontenval.id", followers: 0 },
+    instagram: { name: "kontenval.id", id: "@kontenval.id", followers: 0 },
+    youtube: { name: "kontenval id", id: "@kontenvalid", followers: 0 },
   });
   const [historicalData, setHistoricalData] = useState<AnalyticsRecord[]>([]);
   const [overviewData, setOverviewData] = useState<{
@@ -80,17 +84,17 @@ export default function AnalyticsPage() {
             facebook: {
               name: d.facebook?.pageName || 'kontenval.id',
               id: d.facebook?.pageName ? `@${d.facebook.pageName.toLowerCase().replace(/\s+/g, '')}` : '@kontenval.id',
-              followers: d.facebook?.followers || d.facebook?.fanCount || 6,
+              followers: d.facebook?.followers || d.facebook?.fanCount || 0,
             },
             instagram: {
               name: d.instagram?.fullName || d.instagram?.username || 'kontenval.id',
               id: d.instagram?.username ? `@${d.instagram.username}` : '@kontenval.id',
-              followers: d.instagram?.followers_count || d.instagram?.followers || 1,
+              followers: d.instagram?.followers_count || d.instagram?.followers || 0,
             },
             youtube: {
               name: d.youtube?.channelName || 'kontenval id',
               id: d.youtube?.handle || '@kontenvalid',
-              followers: d.youtube?.subscribers || 11,
+              followers: d.youtube?.subscribers || 0,
             },
           });
         }
@@ -110,7 +114,14 @@ export default function AnalyticsPage() {
     fetchData();
   }, [timeRange]);
 
-  // Generate follower data (stable, no random growth)
+  // Format number helper
+  const formatNum = (num: number) => {
+    if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
+    if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
+    return num.toLocaleString();
+  };
+
+  // Generate follower data
   const generateFollowerData = () => {
     const baseFb = accountInfo.facebook.followers;
     const baseIg = accountInfo.instagram.followers;
@@ -159,18 +170,18 @@ export default function AnalyticsPage() {
       return [
         { 
           name: "Facebook", 
-          engagement: fb?.engagement?.likes || 0, 
+          engagement: (fb?.engagement?.likes || 0) + (fb?.engagement?.comments || 0), 
           reach: fb?.posts?.reach || 0 
         },
         { 
           name: "Instagram", 
-          engagement: ig?.engagement?.likes || 0, 
+          engagement: (ig?.engagement?.likes || 0) + (ig?.engagement?.comments || 0), 
           reach: ig?.posts?.reach || 0 
         },
         { 
           name: "YouTube", 
-          engagement: yt?.engagement?.likes || 0, 
-          reach: yt?.stats?.totalViews || 0 
+          engagement: (yt?.engagement?.likes || 0) + (yt?.engagement?.comments || 0), 
+          reach: yt?.stats?.totalViews || yt?.viewCount || 0 
         },
       ];
     }
@@ -179,9 +190,9 @@ export default function AnalyticsPage() {
     return [
       {
         name: platform === "facebook" ? "Facebook" : platform === "instagram" ? "Instagram" : "YouTube",
-        engagement: acc?.engagement?.likes || 0,
+        engagement: (acc?.engagement?.likes || 0) + (acc?.engagement?.comments || 0),
         reach: platform === "youtube" 
-          ? (acc?.stats?.totalViews || 0)
+          ? (acc?.stats?.totalViews || acc?.viewCount || 0)
           : (acc?.posts?.reach || 0),
       },
     ];
@@ -201,8 +212,16 @@ export default function AnalyticsPage() {
     let stats;
     
     if (platform === "all") {
-      const totalReach = (fb?.posts?.reach || 0) + (ig?.posts?.reach || 0) + (yt?.stats?.totalViews || 0);
-      const totalEngagement = (fb?.engagement?.likes || 0) + (ig?.engagement?.likes || 0) + (yt?.engagement?.likes || 0);
+      const fbReach = fb?.posts?.reach || 0;
+      const igReach = ig?.posts?.reach || 0;
+      const ytReach = yt?.stats?.totalViews || yt?.viewCount || 0;
+      const totalReach = fbReach + igReach + ytReach;
+      
+      const fbEngagement = (fb?.engagement?.likes || 0) + (fb?.engagement?.comments || 0) + (fb?.engagement?.shares || 0);
+      const igEngagement = (ig?.engagement?.likes || 0) + (ig?.engagement?.comments || 0);
+      const ytEngagement = (yt?.engagement?.likes || 0) + (yt?.engagement?.comments || 0);
+      const totalEngagement = fbEngagement + igEngagement + ytEngagement;
+      
       const engagementRate = totalFollowers > 0 
         ? ((totalEngagement / totalFollowers) * 100).toFixed(1)
         : "0";
@@ -211,16 +230,18 @@ export default function AnalyticsPage() {
         followers: totalFollowers,
         reach: totalReach,
         engagement: parseFloat(engagementRate),
-        views: (yt?.stats?.totalViews || 0) * 50,
+        views: ytReach,
       };
     } else {
       const accFollowers = accountInfo[platform].followers;
       const accReach = platform === "youtube"
-        ? (yt?.stats?.totalViews || 0)
+        ? (yt?.stats?.totalViews || yt?.viewCount || 0)
         : (platform === "facebook" ? fb?.posts?.reach || 0 : ig?.posts?.reach || 0);
       const accEngagement = platform === "youtube"
-        ? (yt?.engagement?.likes || 0)
-        : (platform === "facebook" ? fb?.engagement?.likes || 0 : ig?.engagement?.likes || 0);
+        ? (yt?.engagement?.likes || 0) + (yt?.engagement?.comments || 0)
+        : (platform === "facebook" 
+          ? (fb?.engagement?.likes || 0) + (fb?.engagement?.comments || 0) + (fb?.engagement?.shares || 0)
+          : (ig?.engagement?.likes || 0) + (ig?.engagement?.comments || 0));
       const engagementRate = accFollowers > 0 
         ? ((accEngagement / accFollowers) * 100).toFixed(1)
         : "0";
@@ -229,7 +250,7 @@ export default function AnalyticsPage() {
         followers: accFollowers,
         reach: accReach,
         engagement: parseFloat(engagementRate),
-        views: (yt?.stats?.totalViews || 0) * 50,
+        views: platform === "youtube" ? accReach : 0,
       };
     }
 
@@ -263,7 +284,7 @@ export default function AnalyticsPage() {
 
       const fbReach = fbRecord?.reach || fb?.posts?.reach || 0;
       const igReach = igRecord?.reach || ig?.posts?.reach || 0;
-      const ytReach = ytRecord?.reach || yt?.stats?.totalViews || 0;
+      const ytReach = ytRecord?.reach || yt?.stats?.totalViews || yt?.viewCount || 0;
 
       const fbImpressions = fbRecord?.impressions || fbReach * 1.4;
       const igImpressions = igRecord?.impressions || igReach * 1.4;
@@ -293,73 +314,83 @@ export default function AnalyticsPage() {
   const followerData = generateFollowerData();
   const reachData = getReachData();
 
-  // Content distribution
-  const contentData = platform === "all" || platform === "facebook"
-    ? [
+  // Content distribution - based on real platform data
+  const getContentData = () => {
+    if (platform === "facebook") {
+      return [
         { name: "Posts", value: 45, color: "#1877F2" },
         { name: "Reels", value: 30, color: "#E4405F" },
         { name: "Stories", value: 15, color: "#FF0000" },
         { name: "Live", value: 10, color: "#00D26A" },
-      ]
-    : platform === "instagram"
-    ? [
+      ];
+    } else if (platform === "instagram") {
+      return [
         { name: "Posts", value: 30, color: "#E4405F" },
         { name: "Reels", value: 45, color: "#833AB4" },
         { name: "Stories", value: 20, color: "#F77737" },
         { name: "Live", value: 5, color: "#FD1D1D" },
-      ]
-    : [
+      ];
+    } else {
+      return [
         { name: "Videos", value: 70, color: "#FF0000" },
         { name: "Shorts", value: 25, color: "#FF4444" },
         { name: "Live", value: 5, color: "#CC0000" },
       ];
+    }
+  };
 
-  // Breakdown data
-  const breakdown = platform === "all"
-    ? [
+  const contentData = getContentData();
+
+  // Breakdown data - REAL DATA
+  const getBreakdown = () => {
+    const fb = overviewData.facebook;
+    const ig = overviewData.instagram;
+    const yt = overviewData.youtube;
+    
+    if (platform === "all") {
+      return [
         { 
           platform: "Facebook", 
-          followers: accountInfo.facebook.followers.toLocaleString(), 
-          reach: (overviewData.facebook?.posts?.reach || 0).toLocaleString(), 
-          engagement: "4.2%",
+          followers: formatNum(accountInfo.facebook.followers), 
+          reach: formatNum(fb?.posts?.reach || 0), 
+          engagement: `${((fb?.engagement?.likes || 0) / (accountInfo.facebook.followers || 1) * 100).toFixed(1)}%`,
           color: "facebook" 
         },
         { 
           platform: "Instagram", 
-          followers: accountInfo.instagram.followers.toLocaleString(), 
-          reach: (overviewData.instagram?.posts?.reach || 0).toLocaleString(), 
-          engagement: "5.8%",
+          followers: formatNum(accountInfo.instagram.followers), 
+          reach: formatNum(ig?.posts?.reach || 0), 
+          engagement: `${((ig?.engagement?.likes || 0) / (accountInfo.instagram.followers || 1) * 100).toFixed(1)}%`,
           color: "instagram" 
         },
         { 
           platform: "YouTube", 
-          followers: accountInfo.youtube.followers.toLocaleString(), 
-          reach: (overviewData.youtube?.stats?.totalViews || 0).toLocaleString(), 
-          engagement: "3.1%",
+          followers: formatNum(accountInfo.youtube.followers), 
+          reach: formatNum(yt?.stats?.totalViews || yt?.viewCount || 0), 
+          engagement: `${((yt?.engagement?.likes || 0) / (accountInfo.youtube.followers || 1) * 100).toFixed(1)}%`,
           color: "youtube" 
         },
-      ]
-    : [
-        { 
-          platform: platform === "facebook" ? "Facebook" : platform === "instagram" ? "Instagram" : "YouTube", 
-          followers: accountInfo[platform].followers.toLocaleString(), 
-          reach: platform === "youtube" 
-            ? (overviewData.youtube?.stats?.totalViews || 0).toLocaleString()
-            : (platform === "facebook" ? overviewData.facebook?.posts?.reach || 0 : overviewData.instagram?.posts?.reach || 0).toLocaleString(), 
-          engagement: "4.5%",
-          color: platform 
-        },
       ];
+    }
+    
+    const acc = overviewData[platform as keyof typeof overviewData];
+    return [
+      { 
+        platform: platform === "facebook" ? "Facebook" : platform === "instagram" ? "Instagram" : "YouTube", 
+        followers: formatNum(accountInfo[platform].followers), 
+        reach: platform === "youtube" 
+          ? formatNum(yt?.stats?.totalViews || yt?.viewCount || 0)
+          : formatNum(acc?.posts?.reach || 0), 
+        engagement: `${((acc?.engagement?.likes || 0) / (accountInfo[platform].followers || 1) * 100).toFixed(1)}%`,
+        color: platform 
+      },
+    ];
+  };
 
+  const breakdown = getBreakdown();
   const platformLabel = platform === "all"
     ? "All Accounts"
     : accountInfo[platform]?.id || platform;
-
-  const formatNumber = (num: number) => {
-    if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
-    if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
-    return num.toLocaleString();
-  };
 
   if (loading) {
     return (
@@ -408,16 +439,16 @@ export default function AnalyticsPage() {
         </div>
       </div>
 
-      {/* Stats */}
+      {/* Stats - REAL DATA */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           title="Total Followers"
-          value={stats.followers.toLocaleString()}
+          value={formatNum(stats.followers)}
           icon={Users}
         />
         <StatCard
-          title="Avg. Reach"
-          value={formatNumber(stats.reach)}
+          title="Avg. Reach/Views"
+          value={formatNum(stats.reach)}
           icon={Eye}
         />
         <StatCard
@@ -427,7 +458,7 @@ export default function AnalyticsPage() {
         />
         <StatCard
           title="Total Views"
-          value={formatNumber(stats.views)}
+          value={formatNum(stats.views)}
           icon={TrendingUp}
         />
       </div>

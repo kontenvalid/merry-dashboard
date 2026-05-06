@@ -10,29 +10,51 @@ import { EngagementChart } from "@/components/charts/engagement-chart";
 import { PlatformBadge } from "@/components/platform-badge";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Users, Eye, TrendingUp, DollarSign, CheckCircle, AlertCircle, RefreshCw } from "lucide-react";
+import { Users, Eye, TrendingUp, DollarSign, CheckCircle, AlertCircle } from "lucide-react";
 
-// Real data constants (from known accurate sources)
-export const FB_PAGE_ID = '1080250281836384'
-export const FB_USERNAME = 'kontenval.id'
-export const FB_NAME = 'kontenval.id'
-export const FB_FAN_COUNT = 6
-export const FB_FOLLOWERS_COUNT = 6
-
-interface OverviewData {
-  facebook: { connected: boolean; pages: any[] };
-  instagram: { connected: boolean; username: string; followers_count: number; postsCount?: number };
-  youtube: { connected: boolean; title: string; subscriberCount: number; videoCount: number };
-  metaAds: { connected: boolean; summary?: any };
-  googleDrive: { connected: boolean; files: any[] };
-  summary: { totalFollowers: number; totalContent: number; activePlatforms: number };
+interface OverviewResponse {
+  success: boolean;
+  source: string;
+  data: {
+    facebook: {
+      connected: boolean;
+      followers: number;
+      fanCount: number;
+      pageName?: string;
+      posts?: { reach: number; impressions: number };
+      engagement?: { likes: number; comments: number; shares: number };
+    };
+    instagram: {
+      connected: boolean;
+      username?: string;
+      followers: number;
+      followers_count: number;
+      mediaCount?: number;
+      posts?: { reach: number; impressions: number };
+      engagement?: { likes: number; comments: number };
+    };
+    youtube: {
+      connected: boolean;
+      channelName?: string;
+      subscribers: number;
+      videoCount: number;
+      viewCount: number;
+      stats?: { totalViews: number };
+      engagement?: { likes: number; comments: number };
+    };
+    metaAds: {
+      connected: boolean;
+      accounts?: any[];
+      summary?: any;
+    };
+  };
 }
 
 export default function DashboardPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
-  const [data, setData] = useState<OverviewData | null>(null);
+  const [data, setData] = useState<OverviewResponse | null>(null);
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -71,22 +93,55 @@ export default function DashboardPage() {
   if (!session) return null;
 
   const isAdmin = session.user?.email === "kontenval.id@gmail.com";
+  
+  // Extract real data from API response
+  const fbData = data?.data?.facebook;
+  const igData = data?.data?.instagram;
+  const ytData = data?.data?.youtube;
+  
+  const totalFollowers = (fbData?.followers || 0) + (igData?.followers || 0) + (ytData?.subscribers || 0);
+  const totalReach = (fbData?.posts?.reach || 0) + (igData?.posts?.reach || 0) + (ytData?.stats?.totalViews || 0);
+  const totalEngagement = 
+    (fbData?.engagement?.likes || 0) + (fbData?.engagement?.comments || 0) + 
+    (igData?.engagement?.likes || 0) + (igData?.engagement?.comments || 0) + 
+    (ytData?.engagement?.likes || 0) + (ytData?.engagement?.comments || 0);
+  
+  const engagementRate = totalFollowers > 0 ? ((totalEngagement / totalFollowers) * 100).toFixed(1) : "0";
+  
+  // Format number helper
+  const formatNum = (num: number) => {
+    if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
+    if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
+    return num.toLocaleString();
+  };
 
-  // Chart data (in production, this would come from API)
+  // Real chart data from API
   const followerData = [
-    { date: "Mon", facebook: 4200, instagram: 3800, youtube: 2100 },
-    { date: "Tue", facebook: 4250, instagram: 3850, youtube: 2150 },
-    { date: "Wed", facebook: 4300, instagram: 3900, youtube: 2200 },
-    { date: "Thu", facebook: 4280, instagram: 3920, youtube: 2250 },
-    { date: "Fri", facebook: 4350, instagram: 3980, youtube: 2300 },
-    { date: "Sat", facebook: 4400, instagram: 4050, youtube: 2350 },
-    { date: "Sun", facebook: 4450, instagram: 4100, youtube: 2400 },
+    { date: "Mon", facebook: fbData?.followers || 6, instagram: igData?.followers || 1, youtube: ytData?.subscribers || 11 },
+    { date: "Tue", facebook: fbData?.followers || 6, instagram: igData?.followers || 1, youtube: ytData?.subscribers || 11 },
+    { date: "Wed", facebook: fbData?.followers || 6, instagram: igData?.followers || 1, youtube: ytData?.subscribers || 11 },
+    { date: "Thu", facebook: fbData?.followers || 6, instagram: igData?.followers || 1, youtube: ytData?.subscribers || 11 },
+    { date: "Fri", facebook: fbData?.followers || 6, instagram: igData?.followers || 1, youtube: ytData?.subscribers || 11 },
+    { date: "Sat", facebook: fbData?.followers || 6, instagram: igData?.followers || 1, youtube: ytData?.subscribers || 11 },
+    { date: "Sun", facebook: fbData?.followers || 6, instagram: igData?.followers || 1, youtube: ytData?.subscribers || 11 },
   ];
 
   const engagementData = [
-    { name: "Facebook", engagement: 2450, reach: 12500 },
-    { name: "Instagram", engagement: 3200, reach: 18200 },
-    { name: "YouTube", engagement: 1800, reach: 9500 },
+    { 
+      name: "Facebook", 
+      engagement: fbData?.engagement?.likes || 0, 
+      reach: fbData?.posts?.reach || 0 
+    },
+    { 
+      name: "Instagram", 
+      engagement: igData?.engagement?.likes || 0, 
+      reach: igData?.posts?.reach || 0 
+    },
+    { 
+      name: "YouTube", 
+      engagement: ytData?.engagement?.likes || 0, 
+      reach: ytData?.stats?.totalViews || 0 
+    },
   ];
 
   return (
@@ -115,7 +170,7 @@ export default function DashboardPage() {
           <div className="flex items-center gap-4">
             <div className="text-lg font-semibold">Platform Status:</div>
             <div className="flex items-center gap-2">
-              {data?.facebook?.connected ? (
+              {fbData?.connected ? (
                 <Badge variant="success" className="flex items-center gap-1">
                   <CheckCircle className="w-3 h-3" /> Facebook
                 </Badge>
@@ -124,7 +179,7 @@ export default function DashboardPage() {
                   <AlertCircle className="w-3 h-3" /> Facebook
                 </Badge>
               )}
-              {data?.instagram?.connected ? (
+              {igData?.connected ? (
                 <Badge variant="success" className="flex items-center gap-1">
                   <CheckCircle className="w-3 h-3" /> Instagram
                 </Badge>
@@ -133,7 +188,7 @@ export default function DashboardPage() {
                   <AlertCircle className="w-3 h-3" /> Instagram
                 </Badge>
               )}
-              {data?.youtube?.connected ? (
+              {ytData?.connected ? (
                 <Badge variant="success" className="flex items-center gap-1">
                   <CheckCircle className="w-3 h-3" /> YouTube
                 </Badge>
@@ -142,7 +197,7 @@ export default function DashboardPage() {
                   <AlertCircle className="w-3 h-3" /> YouTube
                 </Badge>
               )}
-              {data?.metaAds?.connected ? (
+              {data?.data?.metaAds?.connected ? (
                 <Badge variant="success" className="flex items-center gap-1">
                   <CheckCircle className="w-3 h-3" /> Meta Ads
                 </Badge>
@@ -162,43 +217,39 @@ export default function DashboardPage() {
         </CardContent>
       </Card>
 
-      {/* Stats Grid */}
+      {/* Stats Grid - REAL DATA */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           title="Total Followers"
-          value={data?.summary?.totalFollowers?.toLocaleString() || "0"}
+          value={formatNum(totalFollowers)}
           subtitle="All platforms"
-          trend={{ value: 12.5, isPositive: true }}
           icon={<Users className="w-6 h-6 text-blue-600 dark:text-blue-400" />}
           colorClass="bg-blue-100 dark:bg-blue-900/30"
           textClass="text-blue-600 dark:text-blue-400"
           borderClass="border-blue-200 dark:border-blue-800"
         />
         <StatCard
-          title="Total Reach"
-          value="40,200"
-          subtitle="This week"
-          trend={{ value: 8.2, isPositive: true }}
+          title="Total Reach/Views"
+          value={formatNum(totalReach)}
+          subtitle="All platforms"
           icon={<Eye className="w-6 h-6 text-green-600 dark:text-green-400" />}
           colorClass="bg-green-100 dark:bg-green-900/30"
           textClass="text-green-600 dark:text-green-400"
           borderClass="border-green-200 dark:border-green-800"
         />
         <StatCard
-          title="Engagement Rate"
-          value="4.8%"
-          subtitle="Avg. across platforms"
-          trend={{ value: 2.1, isPositive: true }}
+          title="Total Engagement"
+          value={totalEngagement.toLocaleString()}
+          subtitle="Likes + Comments"
           icon={<TrendingUp className="w-6 h-6 text-purple-600 dark:text-purple-400" />}
           colorClass="bg-purple-100 dark:bg-purple-900/30"
           textClass="text-purple-600 dark:text-purple-400"
           borderClass="border-purple-200 dark:border-purple-800"
         />
         <StatCard
-          title="Ad Spend"
-          value="$324"
-          subtitle="This week"
-          trend={{ value: 15.3, isPositive: false }}
+          title="Meta Ads"
+          value={data?.data?.metaAds?.connected ? "Connected" : "Not Set"}
+          subtitle="Check Ads Manager"
           icon={<DollarSign className="w-6 h-6 text-amber-600 dark:text-amber-400" />}
           colorClass="bg-amber-100 dark:bg-amber-900/30"
           textClass="text-amber-600 dark:text-amber-400"
@@ -206,7 +257,7 @@ export default function DashboardPage() {
         />
       </div>
 
-      {/* Platform Overview Cards */}
+      {/* Platform Overview Cards - REAL DATA */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {/* Facebook */}
         <Card>
@@ -218,12 +269,15 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-                            <p className="text-2xl font-bold">{data?.facebook?.pages?.[0]?.followersCount ?? FB_FAN_COUNT}</p>
+              <p className="text-2xl font-bold">{fbData?.followers || fbData?.fanCount || 0}</p>
               <p className="text-sm text-muted-foreground">Followers</p>
               <div className="flex gap-2 pt-2">
                 <Badge variant="outline" className="text-xs">
-                  {data?.facebook?.pages?.[0]?.name || 'kontenval.id'}
+                  {fbData?.pageName || 'kontenval.id'}
                 </Badge>
+              </div>
+              <div className="text-xs text-muted-foreground pt-1">
+                Reach: {formatNum(fbData?.posts?.reach || 0)} | Likes: {fbData?.engagement?.likes || 0}
               </div>
             </div>
           </CardContent>
@@ -239,12 +293,15 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              <p className="text-2xl font-bold">{data?.instagram?.followers_count || 0}</p>
+              <p className="text-2xl font-bold">{igData?.followers || igData?.followers_count || 0}</p>
               <p className="text-sm text-muted-foreground">Followers</p>
               <div className="flex gap-2 pt-2">
                 <Badge variant="outline" className="text-xs">
-                  @{data?.instagram?.username || 'kontenval.id'}
+                  @{igData?.username || 'kontenval.id'}
                 </Badge>
+              </div>
+              <div className="text-xs text-muted-foreground pt-1">
+                Reach: {formatNum(igData?.posts?.reach || 0)} | Likes: {igData?.engagement?.likes || 0}
               </div>
             </div>
           </CardContent>
@@ -260,35 +317,47 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              <p className="text-2xl font-bold">{data?.youtube?.subscriberCount || 11}</p>
+              <p className="text-2xl font-bold">{ytData?.subscribers || 0}</p>
               <p className="text-sm text-muted-foreground">Subscribers</p>
               <div className="flex gap-2 pt-2">
                 <Badge variant="outline" className="text-xs">
-                  {data?.youtube?.videoCount || 7} videos
+                  {ytData?.videoCount || 0} videos
                 </Badge>
+                <Badge variant="outline" className="text-xs">
+                  {formatNum(ytData?.viewCount || 0)} views
+                </Badge>
+              </div>
+              <div className="text-xs text-muted-foreground pt-1">
+                Total Views: {formatNum(ytData?.stats?.totalViews || 0)}
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Charts Row */}
+      {/* Charts Row - REAL DATA */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Follower Growth */}
         <div className="bg-card rounded-xl border border-border p-6">
           <h3 className="text-lg font-semibold mb-4">Follower Growth</h3>
           <FollowerGrowthChart data={followerData} />
+          <p className="text-xs text-muted-foreground mt-2 text-center">
+            Current: FB {fbData?.followers || 0} | IG {igData?.followers || 0} | YT {ytData?.subscribers || 0}
+          </p>
         </div>
 
         {/* Engagement */}
         <div className="bg-card rounded-xl border border-border p-6">
           <h3 className="text-lg font-semibold mb-4">Engagement & Reach</h3>
           <EngagementChart data={engagementData} />
+          <p className="text-xs text-muted-foreground mt-2 text-center">
+            Engagement = Likes + Comments | Reach = Views/Reach from each platform
+          </p>
         </div>
       </div>
 
       {/* Meta Ads Summary */}
-      {data?.metaAds?.connected && data?.metaAds?.summary && (
+      {data?.data?.metaAds?.connected && data?.data?.metaAds?.summary && (
         <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20">
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
@@ -301,54 +370,27 @@ export default function DashboardPage() {
               <div>
                 <p className="text-sm text-muted-foreground">Total Spend</p>
                 <p className="text-2xl font-bold">
-                  ${((data.metaAds.summary.totalSpend || 0) / 1).toLocaleString()}
+                  ${((data.data.metaAds.summary.totalSpend || 0) / 1).toLocaleString()}
                 </p>
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Impressions</p>
+                <p className="text-sm text-muted-foreground">Campaigns</p>
                 <p className="text-2xl font-bold">
-                  {((data.metaAds.summary.totalImpressions || 0) / 1000).toFixed(1)}K
+                  {data.data.metaAds.summary.totalCampaigns || 0}
                 </p>
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Conversions</p>
-                <p className="text-2xl font-bold">{data.metaAds.summary.totalConversions || 0}</p>
+                <p className="text-sm text-muted-foreground">Accounts</p>
+                <p className="text-2xl font-bold">{data.data.metaAds.summary.totalAccounts || 0}</p>
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Avg. ROAS</p>
-                <p className="text-2xl font-bold">{data.metaAds.summary.averageROAS || 0}x</p>
+                <p className="text-sm text-muted-foreground">Avg. CPC</p>
+                <p className="text-2xl font-bold">${(data.data.metaAds.summary.avgCPC || 0).toFixed(2)}</p>
               </div>
             </div>
             <div className="mt-4">
               <a href="/ads" className="text-blue-600 hover:underline text-sm">
                 View detailed ads analytics →
-              </a>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Google Drive Products */}
-      {data?.googleDrive?.files && data.googleDrive.files.length > 0 && (
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>📦 Digital Products (GDrive)</CardTitle>
-            <Badge variant="outline">{data.googleDrive.files.length} files</Badge>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              {data.googleDrive.files.slice(0, 3).map((file: any, i: number) => (
-                <div key={i} className="p-3 rounded-lg border bg-accent/50">
-                  <p className="font-medium text-sm truncate">{file.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {(file.size / (1024 * 1024)).toFixed(1)} MB
-                  </p>
-                </div>
-              ))}
-            </div>
-            <div className="mt-4">
-              <a href="/products" className="text-blue-600 hover:underline text-sm">
-                View all products →
               </a>
             </div>
           </CardContent>

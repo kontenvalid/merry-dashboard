@@ -1,15 +1,28 @@
 import { NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { getApiKey } from '@/lib/api-key-store'
 
 export async function GET() {
-  const apiKey = process.env.COMPOSIO_API_KEY
+  const session = await getServerSession(authOptions)
+  
+  if (!session?.user?.email) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const userId = session.user.id || session.user.email
+  const apiKey = await getApiKey(userId, 'composio')
   
   if (!apiKey) {
-    return NextResponse.json({ error: 'COMPOSIO_API_KEY not set' }, { status: 500 })
+    return NextResponse.json({ 
+      error: 'Composio API key not configured', 
+      message: 'Please connect Composio via Settings page' 
+    }, { status: 400 })
   }
   
   try {
-    // Test the new REST API endpoint
-    const response = await fetch('https://backend.composio.dev/api/v3.1/tools/execute/INSTAGRAM_GET_USER_INFO', {
+    // Test the Composio REST API endpoint
+    const response = await fetch('https://backend.composio.dev/api/v3.1/tools/execute/INSTAGRAM_GET_USER_PROFILE', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
@@ -18,7 +31,7 @@ export async function GET() {
       },
       body: JSON.stringify({
         userId: 'me',
-        arguments: { ig_user_id: 'me' }
+        arguments: { user_id: 'me' }
       })
     })
     

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import prisma from '@/lib/prisma'
-import { getConsumerApiKey } from '@/lib/composio-store'
+import { getApiKey } from '@/lib/api-key-store'
 
 export async function POST(request: Request) {
   try {
@@ -12,11 +12,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const userEmail = session.user.email
-    const apiKey = getConsumerApiKey(userEmail) || process.env.COMPOSIO_API_KEY
+    const userId = session.user.id || session.user.email
+    const apiKey = await getApiKey(userId, 'composio')
+
+    if (!apiKey) {
+      return NextResponse.json({ error: 'Composio API key not configured. Please connect via Settings.' }, { status: 400 })
+    }
 
     // Fetch current data from Composio
-    const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/composio/overview`)
+    const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/composio/overview`, {
+      headers: {
+        'Cookie': request.headers.get('cookie') || ''
+      }
+    })
     
     if (!response.ok) {
       throw new Error('Failed to fetch overview data')
