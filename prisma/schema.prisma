@@ -155,7 +155,7 @@ model AdPerformance {
 // Dashboard settings/preferences
 model DashboardSettings {
   id           String   @id @default(cuid())
-  userId       String   @unique
+  userId       String?
   theme        String   @default("system") // light, dark, system
   language     String   @default("en")
   timezone     String   @default("Asia/Bangkok")
