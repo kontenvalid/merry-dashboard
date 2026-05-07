@@ -1,5 +1,5 @@
-// Composio MCP Service
-// Handles connection to Composio via MCP gateway and fetches social media data
+// Composio MCP Service v3
+// Uses COMPOSIO_MULTI_EXECUTE_TOOL to execute social media tools
 
 const MCP_ENDPOINT = 'https://connect.composio.dev/mcp'
 
@@ -20,6 +20,7 @@ export interface SocialMediaData {
   comments: number
   shares: number
   views: number
+  watchTime: number
 }
 
 export interface McpToolResult {
@@ -28,8 +29,17 @@ export interface McpToolResult {
   error?: string
 }
 
+export interface GoogleDriveFile {
+  id: string
+  name: string
+  mimeType: string
+  size: number
+  modifiedTime: string
+  webViewLink: string
+}
+
 // Call MCP endpoint with JSON-RPC 2.0
-export async function callMcp(apiKey: string, method: string, params: any): Promise<McpToolResult> {
+async function callMcp(apiKey: string, method: string, params: any): Promise<McpToolResult> {
   const body = JSON.stringify({
     jsonrpc: '2.0',
     id: Date.now(),
@@ -61,17 +71,7 @@ export async function callMcp(apiKey: string, method: string, params: any): Prom
       const jsonPart = text.split('\n').find(line => line.startsWith('data:'))
       if (jsonPart) {
         const data = JSON.parse(jsonPart.substring(5))
-        if (data.result?.content?.[0]?.text) {
-          try {
-            return { success: true, data: JSON.parse(data.result.content[0].text) }
-          } catch {
-            return { success: true, data: data.result.content[0].text }
-          }
-        }
-        if (data.result?.isError) {
-          return { success: false, error: data.result.content?.[0]?.text || 'Tool error' }
-        }
-        return { success: true, data: data.result }
+        return { success: true, data }
       }
     }
     
@@ -81,240 +81,509 @@ export async function callMcp(apiKey: string, method: string, params: any): Prom
   }
 }
 
-// Search for available tools
-export async function searchTools(apiKey: string, query: string) {
-  return callMcp(apiKey, 'tools/call', {
-    name: 'COMPOSIO_SEARCH_TOOLS',
-    arguments: { queries: [{ use_case: query }] },
-    session: { generate_id: true },
-    sync_response_to_workbench: false
-  })
-}
-
-// Get available tools list
-export async function listTools(apiKey: string) {
-  return callMcp(apiKey, 'tools/list', {})
-}
-
-// Execute a specific Composio tool
-export async function executeTool(apiKey: string, toolName: string, arguments_: any) {
-  return callMcp(apiKey, 'tools/call', {
-    name: toolName,
-    arguments: arguments_
-  })
-}
-
-// Fetch Facebook page data
-export async function fetchFacebookData(apiKey: string): Promise<SocialMediaData | null> {
-  // Try to search for Facebook tools first
-  const searchResult = await searchTools(apiKey, 'facebook page followers')
-  
-  if (!searchResult.success || !searchResult.data?.tools) {
-    console.warn('Facebook tools not found, using default data')
-    return {
-      platform: 'FACEBOOK',
-      followers: 6,
-      following: 0,
-      posts: 0,
-      engagement: 0,
-      reach: 0,
-      impressions: 0,
-      likes: 0,
-      comments: 0,
-      shares: 0,
-      views: 0
+// Parse text content from MCP response
+function parseTextContent(result: any): any {
+  if (result?.result?.content?.[0]?.text) {
+    try {
+      return JSON.parse(result.result.content[0].text)
+    } catch {
+      return result.result.content[0].text
     }
   }
+  return result?.result || result
+}
 
-  // Get tool schemas for Facebook tools
-  const toolSlugs = searchResult.data.tools
-    .filter((t: any) => t.name.includes('FACEBOOK'))
-    .map((t: any) => t.name)
+// Execute multiple tools using COMPOSIO_MULTI_EXECUTE_TOOL
+async function executeMultiTools(apiKey: string, tools: any[], step: string, thought: string): Promise<any[]> {
+  const result = await callMcp(apiKey, 'tools/call', {
+    name: 'COMPOSIO_MULTI_EXECUTE_TOOL',
+    arguments: {
+      current_step: step,
+      thought: thought,
+      tools: tools,
+      sync_response_to_workbench: false
+    }
+  })
 
-  if (toolSlugs.length === 0) {
-    // No Facebook tools available
-    return null
-  }
-
-  // Execute Facebook tool (first available)
-  const result = await executeTool(apiKey, toolSlugs[0], { page_id: FB_PAGE_ID })
-  
   if (!result.success) {
-    return null
+    throw new Error(result.error || 'Multi-execute failed')
   }
 
-  // Parse result and return standardized data
-  const data = result.data?.data || result.data
-  
-  return {
-    platform: 'FACEBOOK',
-    followers: data.followers_count || data.followers || 0,
-    following: data.following_count || 0,
-    posts: data.posts_count || data.media_count || 0,
-    engagement: (data.likes || 0) + (data.comments || 0) + (data.shares || 0),
-    reach: data.reach || 0,
-    impressions: data.impressions || 0,
-    likes: data.likes || 0,
-    comments: data.comments || 0,
-    shares: data.shares || 0,
-    views: 0
+  const parsed = parseTextContent(result)
+  return parsed?.data?.results?.[0]?.response?.data || []
+}
+
+// =======================
+// FACEBOOK
+// =======================
+
+async function fetchFacebookPageInfo(apiKey: string) {
+  try {
+    const results = await executeMultiTools(apiKey, [
+      {
+        tool_slug: 'FACEBOOK_GET_PAGE_DETAILS',
+        arguments: { page_id: FB_PAGE_ID }
+      }
+    ], 'FETCHING_FACEBOOK_PAGE', 'Get Facebook page details including followers count')
+    
+    return results?.[0]?.data || null
+  } catch (e) {
+    console.warn('FACEBOOK_GET_PAGE_DETAILS failed:', e)
+    return null
   }
 }
 
-// Fetch Instagram profile data
-export async function fetchInstagramData(apiKey: string): Promise<SocialMediaData | null> {
-  // Search for Instagram tools
-  const searchResult = await searchTools(apiKey, 'instagram followers profile')
-  
-  if (!searchResult.success || !searchResult.data?.tools) {
-    console.warn('Instagram tools not found')
-    return null
-  }
-
-  // Get Instagram tool slugs
-  const toolSlugs = searchResult.data.tools
-    .filter((t: any) => t.name.includes('INSTAGRAM') && t.name.includes('USER'))
-    .map((t: any) => t.name)
-
-  if (toolSlugs.length === 0) {
-    console.warn('No Instagram user tools found')
-    return null
-  }
-
-  // Execute Instagram tool
-  const result = await executeTool(apiKey, toolSlugs[0], { ig_user_id: IG_USER_ID })
-  
-  if (!result.success) {
-    console.warn('Instagram tool execution failed:', result.error)
-    return null
-  }
-
-  // Parse result
-  const data = result.data?.data || result.data
-  
-  return {
-    platform: 'INSTAGRAM',
-    followers: data.followers_count || data.followers || 0,
-    following: data.following_count || 0,
-    posts: data.media_count || 0,
-    engagement: (data.likes || 0) + (data.comments || 0),
-    reach: 0,
-    impressions: 0,
-    likes: data.likes || 0,
-    comments: data.comments || 0,
-    shares: 0,
-    views: data.video_views || 0
+async function fetchFacebookPosts(apiKey: string, limit = 10) {
+  try {
+    const results = await executeMultiTools(apiKey, [
+      {
+        tool_slug: 'FACEBOOK_GET_PAGE_POSTS',
+        arguments: {
+          page_id: FB_PAGE_ID,
+          limit: limit,
+          fields: 'id,message,created_time,permalink_url,shares,reactions.summary(true),comments.summary(true)'
+        }
+      }
+    ], 'FETCHING_FACEBOOK_POSTS', 'Get recent Facebook page posts')
+    
+    return results?.[0]?.data || []
+  } catch (e) {
+    console.warn('FACEBOOK_GET_PAGE_POSTS failed:', e)
+    return []
   }
 }
 
-// Fetch YouTube channel data
-export async function fetchYoutubeData(apiKey: string): Promise<SocialMediaData | null> {
-  // Search for YouTube tools
-  const searchResult = await searchTools(apiKey, 'youtube channel subscribers')
-  
-  if (!searchResult.success || !searchResult.data?.tools) {
-    console.warn('YouTube tools not found')
+async function fetchFacebookPageInsights(apiKey: string) {
+  try {
+    const results = await executeMultiTools(apiKey, [
+      {
+        tool_slug: 'FACEBOOK_GET_PAGE_INSIGHTS',
+        arguments: {
+          page_id: FB_PAGE_ID,
+          metrics: 'page_impressions,page_reach,page_post_engagements,page_fan_count,page_views_total'
+        }
+      }
+    ], 'FETCHING_FACEBOOK_INSIGHTS', 'Get Facebook page insights and metrics')
+    
+    return results?.[0]?.data || null
+  } catch (e) {
+    console.warn('FACEBOOK_GET_PAGE_INSIGHTS failed:', e)
     return null
   }
+}
 
-  // Get YouTube tool slugs
-  const toolSlugs = searchResult.data.tools
-    .filter((t: any) => t.name.includes('YOUTUBE') && t.name.includes('CHANNEL'))
-    .map((t: any) => t.name)
+async function fetchFacebookManagedPages(apiKey: string) {
+  try {
+    const results = await executeMultiTools(apiKey, [
+      {
+        tool_slug: 'FACEBOOK_LIST_MANAGED_PAGES',
+        arguments: {}
+      }
+    ], 'FETCHING_FACEBOOK_PAGES', 'List all Facebook pages managed by the user')
+    
+    return results?.[0]?.data || []
+  } catch (e) {
+    console.warn('FACEBOOK_LIST_MANAGED_PAGES failed:', e)
+    return []
+  }
+}
 
-  if (toolSlugs.length === 0) {
-    console.warn('No YouTube channel tools found')
+// =======================
+// INSTAGRAM
+// =======================
+
+async function fetchInstagramUserInfo(apiKey: string) {
+  try {
+    const results = await executeMultiTools(apiKey, [
+      {
+        tool_slug: 'INSTAGRAM_GET_USER_INFO',
+        arguments: { ig_user_id: IG_USER_ID }
+      }
+    ], 'FETCHING_INSTAGRAM_USER', 'Get Instagram user profile info')
+    
+    return results?.[0]?.data || null
+  } catch (e) {
+    console.warn('INSTAGRAM_GET_USER_INFO failed:', e)
     return null
   }
+}
 
-  // Execute YouTube tool
-  const result = await executeTool(apiKey, toolSlugs[0], { channel_id: YT_CHANNEL_ID })
-  
-  if (!result.success) {
-    console.warn('YouTube tool execution failed:', result.error)
+async function fetchInstagramMedia(apiKey: string, limit = 10) {
+  try {
+    const results = await executeMultiTools(apiKey, [
+      {
+        tool_slug: 'INSTAGRAM_GET_IG_USER_MEDIA',
+        arguments: { ig_user_id: IG_USER_ID, limit: limit }
+      }
+    ], 'FETCHING_INSTAGRAM_MEDIA', 'Get Instagram user media posts')
+    
+    return results?.[0]?.data || []
+  } catch (e) {
+    console.warn('INSTAGRAM_GET_IG_USER_MEDIA failed:', e)
+    return []
+  }
+}
+
+async function fetchInstagramUserInsights(apiKey: string) {
+  try {
+    const results = await executeMultiTools(apiKey, [
+      {
+        tool_slug: 'INSTAGRAM_GET_USER_INSIGHTS',
+        arguments: { ig_user_id: IG_USER_ID }
+      }
+    ], 'FETCHING_INSTAGRAM_INSIGHTS', 'Get Instagram user insights')
+    
+    return results?.[0]?.data || null
+  } catch (e) {
+    console.warn('INSTAGRAM_GET_USER_INSIGHTS failed:', e)
     return null
   }
+}
 
-  // Parse result
-  const data = result.data?.data || result.data
-  const stats = data.statistics || {}
+// =======================
+// YOUTUBE
+// =======================
+
+async function fetchYoutubeChannelStats(apiKey: string) {
+  try {
+    const results = await executeMultiTools(apiKey, [
+      {
+        tool_slug: 'YOUTUBE_GET_CHANNEL_STATISTICS',
+        arguments: { channel_id: YT_CHANNEL_ID }
+      }
+    ], 'FETCHING_YOUTUBE_STATS', 'Get YouTube channel statistics')
+    
+    return results?.[0]?.data || null
+  } catch (e) {
+    console.warn('YOUTUBE_GET_CHANNEL_STATISTICS failed:', e)
+    return null
+  }
+}
+
+async function fetchYoutubeChannelDetails(apiKey: string) {
+  try {
+    const results = await executeMultiTools(apiKey, [
+      {
+        tool_slug: 'YOUTUBE_GET_CHANNEL_DETAILS',
+        arguments: { channel_id: YT_CHANNEL_ID }
+      }
+    ], 'FETCHING_YOUTUBE_DETAILS', 'Get YouTube channel details')
+    
+    return results?.[0]?.data || null
+  } catch (e) {
+    console.warn('YOUTUBE_GET_CHANNEL_DETAILS failed:', e)
+    return null
+  }
+}
+
+async function fetchYoutubeVideos(apiKey: string, maxResults = 10) {
+  try {
+    const results = await executeMultiTools(apiKey, [
+      {
+        tool_slug: 'YOUTUBE_LIST_CHANNEL_VIDEOS',
+        arguments: { channel_id: YT_CHANNEL_ID, max_results: maxResults }
+      }
+    ], 'FETCHING_YOUTUBE_VIDEOS', 'Get recent YouTube channel videos')
+    
+    return results?.[0]?.data || []
+  } catch (e) {
+    console.warn('YOUTUBE_LIST_CHANNEL_VIDEOS failed:', e)
+    return []
+  }
+}
+
+// =======================
+// Fetch All Data
+// =======================
+
+export async function fetchAllFacebookData(apiKey: string): Promise<SocialMediaData | null> {
+  console.log('📘 Fetching Facebook data...')
   
-  return {
-    platform: 'YOUTUBE',
-    followers: parseInt(stats.subscriberCount || '0'),
-    following: 0,
-    posts: parseInt(stats.videoCount || '0'),
-    engagement: parseInt(stats.commentCount || '0'),
-    reach: 0,
-    impressions: 0,
-    likes: 0,
-    comments: parseInt(stats.commentCount || '0'),
-    shares: 0,
-    views: parseInt(stats.viewCount || '0')
+  try {
+    const [pageInfo, posts, insights] = await Promise.all([
+      fetchFacebookPageInfo(apiKey),
+      fetchFacebookPosts(apiKey, 20),
+      fetchFacebookPageInsights(apiKey)
+    ])
+
+    console.log('FB Page Info:', pageInfo)
+    console.log('FB Posts count:', Array.isArray(posts) ? posts.length : 'N/A')
+    console.log('FB Insights:', insights)
+
+    // Parse page info
+    let followers = 0, postsCount = 0
+    if (pageInfo) {
+      followers = pageInfo.followers_count || pageInfo.followers || 0
+      postsCount = pageInfo.posts_count || 0
+    }
+
+    // Parse posts for engagement
+    let likes = 0, comments = 0, shares = 0, reach = 0, impressions = 0
+    const postsArray = Array.isArray(posts) ? posts : []
+    
+    for (const post of postsArray) {
+      likes += post.reactions?.summary?.total_count || 0
+      comments += post.comments?.summary?.total_count || 0
+      shares += post.shares?.count || 0
+    }
+
+    // Parse insights
+    if (insights) {
+      if (Array.isArray(insights)) {
+        for (const item of insights) {
+          if (item.name === 'page_impressions') impressions = item.values?.[0]?.value || 0
+          if (item.name === 'page_reach') reach = item.values?.[0]?.value || 0
+        }
+      } else {
+        impressions = insights.page_impressions || insights.impressions || 0
+        reach = insights.page_reach || insights.reach || 0
+      }
+    }
+
+    console.log('📘 Facebook parsed:', { followers, postsCount, likes, comments, shares, reach, impressions })
+
+    return {
+      platform: 'FACEBOOK',
+      followers,
+      following: 0,
+      posts: postsCount,
+      engagement: likes + comments + shares,
+      reach,
+      impressions,
+      likes,
+      comments,
+      shares,
+      views: 0,
+      watchTime: 0
+    }
+  } catch (error: any) {
+    console.error('Facebook fetch error:', error)
+    return null
+  }
+}
+
+export async function fetchAllInstagramData(apiKey: string): Promise<SocialMediaData | null> {
+  console.log('📷 Fetching Instagram data...')
+  
+  try {
+    const [userInfo, media, insights] = await Promise.all([
+      fetchInstagramUserInfo(apiKey),
+      fetchInstagramMedia(apiKey, 20),
+      fetchInstagramUserInsights(apiKey)
+    ])
+
+    console.log('IG User Info:', userInfo)
+    console.log('IG Media count:', Array.isArray(media) ? media.length : 'N/A')
+    console.log('IG Insights:', insights)
+
+    // Parse user info
+    let followers = 0, following = 0, postsCount = 0
+    if (userInfo) {
+      followers = userInfo.followers_count || userInfo.followers || 0
+      following = userInfo.follows_count || userInfo.following || 0
+      postsCount = userInfo.media_count || userInfo.posts || 0
+    }
+
+    // Parse media for engagement
+    let likes = 0, comments = 0, shares = 0, views = 0, reach = 0, impressions = 0
+    const mediaArray = Array.isArray(media) ? media : []
+    
+    for (const item of mediaArray) {
+      likes += item.like_count || 0
+      comments += item.comments_count || 0
+      shares += item.share_count || 0
+      views += item.video_view_count || item.views || 0
+    }
+
+    // Parse insights
+    if (insights) {
+      if (Array.isArray(insights)) {
+        for (const item of insights) {
+          if (item.name === 'impressions') impressions += item.values?.[0]?.value || 0
+          if (item.name === 'reach') reach += item.values?.[0]?.value || 0
+        }
+      } else {
+        impressions = insights.impressions || 0
+        reach = insights.reach || 0
+        views = insights.views || views
+      }
+    }
+
+    console.log('📷 Instagram parsed:', { followers, following, postsCount, likes, comments, views, reach, impressions })
+
+    return {
+      platform: 'INSTAGRAM',
+      followers,
+      following,
+      posts: postsCount,
+      engagement: likes + comments + shares,
+      reach,
+      impressions,
+      likes,
+      comments,
+      shares,
+      views,
+      watchTime: 0
+    }
+  } catch (error: any) {
+    console.error('Instagram fetch error:', error)
+    return null
+  }
+}
+
+export async function fetchAllYoutubeData(apiKey: string): Promise<SocialMediaData | null> {
+  console.log('📺 Fetching YouTube data...')
+  
+  try {
+    const [stats, details, videos] = await Promise.all([
+      fetchYoutubeChannelStats(apiKey),
+      fetchYoutubeChannelDetails(apiKey),
+      fetchYoutubeVideos(apiKey, 20)
+    ])
+
+    console.log('YT Stats:', stats)
+    console.log('YT Details:', details ? 'present' : 'null')
+    console.log('YT Videos count:', Array.isArray(videos) ? videos.length : 'N/A')
+
+    // Parse channel statistics
+    let subscribers = 0, views = 0, postsCount = 0, commentsCount = 0
+    let likes = 0, watchTime = 0
+    
+    if (stats) {
+      const statistics = stats.statistics || stats
+      subscribers = parseInt(statistics.subscriberCount || '0') || 0
+      views = parseInt(statistics.viewCount || '0') || 0
+      postsCount = parseInt(statistics.videoCount || '0') || 0
+      commentsCount = parseInt(statistics.commentCount || '0') || 0
+    }
+
+    // Parse videos for engagement
+    const videosArray = Array.isArray(videos) ? videos : []
+    
+    for (const video of videosArray) {
+      const vStats = video.statistics || {}
+      likes += parseInt(vStats.likeCount || '0') || 0
+      commentsCount += parseInt(vStats.commentCount || '0') || 0
+      watchTime += video.approximate_watch_time_estimate || video.watch_time || 0
+    }
+
+    console.log('📺 YouTube parsed:', { subscribers, views, postsCount, likes, commentsCount, watchTime })
+
+    return {
+      platform: 'YOUTUBE',
+      followers: subscribers,
+      following: 0,
+      posts: postsCount,
+      engagement: likes + commentsCount,
+      reach: views,
+      impressions: 0,
+      likes,
+      comments: commentsCount,
+      shares: 0,
+      views,
+      watchTime
+    }
+  } catch (error: any) {
+    console.error('YouTube fetch error:', error)
+    return null
   }
 }
 
 // Fetch all social media data
 export async function fetchAllSocialData(apiKey: string): Promise<SocialMediaData[]> {
-  const results: SocialMediaData[] = []
+  console.log('\n=== Fetching all social media data ===\n')
 
-  // Fetch all in parallel
   const [fb, ig, yt] = await Promise.allSettled([
-    fetchFacebookData(apiKey),
-    fetchInstagramData(apiKey),
-    fetchYoutubeData(apiKey)
+    fetchAllFacebookData(apiKey),
+    fetchAllInstagramData(apiKey),
+    fetchAllYoutubeData(apiKey)
   ])
 
+  const results: SocialMediaData[] = []
+
   if (fb.status === 'fulfilled' && fb.value) {
+    console.log('✅ Facebook success:', fb.value)
     results.push(fb.value)
+  } else {
+    console.log('❌ Facebook failed:', fb.status, fb.reason?.message)
   }
-  if (ig.status === 'fulfilled' && ig.value) {
-    results.push(ig.value)
-  }
-  if (yt.status === 'fulfilled' && yt.value) {
-    results.push(yt.value)
-  }
-
-  return results
-}
-
-// Fetch Google Drive files
-export async function fetchGoogleDriveFiles(apiKey: string, folderId?: string) {
-  const searchResult = await searchTools(apiKey, 'google drive files list')
   
-  if (!searchResult.success || !searchResult.data?.tools) {
-    return { success: false, files: [], error: 'Google Drive tools not found' }
+  if (ig.status === 'fulfilled' && ig.value) {
+    console.log('✅ Instagram success:', ig.value)
+    results.push(ig.value)
+  } else {
+    console.log('❌ Instagram failed:', ig.status, ig.reason?.message)
+  }
+  
+  if (yt.status === 'fulfilled' && yt.value) {
+    console.log('✅ YouTube success:', yt.value)
+    results.push(yt.value)
+  } else {
+    console.log('❌ YouTube failed:', yt.status, yt.reason?.message)
   }
 
-  const toolSlugs = searchResult.data.tools
-    .filter((t: any) => t.name.includes('GOOGLEDRIVE'))
-    .map((t: any) => t.name)
-
-  if (toolSlugs.length === 0) {
-    return { success: false, files: [], error: 'No Google Drive tools found' }
-  }
-
-  const result = await executeTool(apiKey, toolSlugs[0], {
-    q: folderId ? `"${folderId}" in parents` : "trashed = false",
-    fields: "files(id,name,mimeType,size,modifiedTime,webViewLink)",
-    orderBy: "modifiedTime desc",
-    pageSize: 100
-  })
-
-  if (!result.success) {
-    return { success: false, files: [], error: result.error }
-  }
-
-  const files = result.data?.files || result.data || []
-  return { success: true, files }
+  console.log(`\n=== Total: ${results.length} platforms fetched ===\n`)
+  return results
 }
 
 // Test MCP connection
 export async function testMcpConnection(apiKey: string) {
-  const result = await listTools(apiKey)
+  const result = await callMcp(apiKey, 'tools/list', {})
   return {
     success: result.success,
-    toolsCount: result.data?.tools?.length || 0,
+    toolsCount: result.data?.result?.tools?.length || 0,
     error: result.error
+  }
+}
+
+// Get connection status
+export async function getConnectionStatus(apiKey: string) {
+  try {
+    const results = await executeMultiTools(apiKey, [
+      {
+        tool_slug: 'COMPOSIO_SEARCH_TOOLS',
+        arguments: { queries: [{ use_case: 'facebook instagram youtube' }] }
+      }
+    ], 'CHECKING_STATUS', 'Check social media connection status')
+    
+    const parsed = results?.[0]?.data
+    return parsed?.data?.toolkit_connection_statuses || []
+  } catch (e) {
+    console.warn('Connection status check failed:', e)
+    return []
+  }
+}
+
+// Fetch Google Drive files
+export async function fetchGoogleDriveFiles(apiKey: string): Promise<{ success: boolean; files: GoogleDriveFile[]; error?: string }> {
+  console.log('📁 Fetching Google Drive files...')
+  
+  try {
+    const results = await executeMultiTools(apiKey, [
+      {
+        tool_slug: 'GOOGLEDRIVE_LIST_DRIVE_FILES',
+        arguments: { 
+          page_size: 50,
+          order_by: 'modified_time desc'
+        }
+      }
+    ], 'FETCHING_GDRIVE', 'List Google Drive files')
+    
+    const filesData = results?.[0]?.data?.files || results?.[0]?.data || []
+    
+    const files: GoogleDriveFile[] = filesData.map((f: any) => ({
+      id: f.id,
+      name: f.name,
+      mimeType: f.mimeType,
+      size: f.size || 0,
+      modifiedTime: f.modifiedTime,
+      webViewLink: f.webViewLink
+    }))
+    
+    console.log(`📁 Found ${files.length} Google Drive files`)
+    return { success: true, files }
+  } catch (e: any) {
+    console.warn('Google Drive fetch failed:', e)
+    return { success: false, files: [], error: e.message }
   }
 }

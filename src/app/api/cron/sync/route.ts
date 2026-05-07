@@ -1,20 +1,11 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { getApiKey } from '@/lib/api-key-store'
-import { fetchAllSocialData, testMcpConnection } from '@/lib/composio-mcp'
+import { fetchAllSocialData, fetchGoogleDriveFiles, testMcpConnection, SocialMediaData, GoogleDriveFile } from '@/lib/composio-mcp'
 
 // GET - Manual trigger or scheduled sync
 export async function GET(request: Request) {
   try {
-    // Optional: verify cron secret for scheduled jobs
-    const authHeader = request.headers.get('authorization')
-    const cronSecret = process.env.CRON_SECRET || 'merry-cron-secret'
-    
-    // For demo, allow without auth. In production, check auth
-    // if (authHeader !== `Bearer ${cronSecret}`) {
-    //   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    // }
-
     // Get user from query or use default
     const { searchParams } = new URL(request.url)
     const userId = searchParams.get('userId') || 'kontenval.id@gmail.com'
@@ -42,14 +33,16 @@ export async function GET(request: Request) {
       }, { status: 500 })
     }
 
-    // Fetch all social media data
+    console.log('MCP connection OK. Tools available:', connectionTest.toolsCount)
+
+    // Fetch all social media data using COMPOSIO_MULTI_EXECUTE_TOOL
     const socialData = await fetchAllSocialData(apiKey)
 
-    // Store results in database
+    // Store social media results in database
     const today = new Date()
     today.setHours(0, 0, 0, 0)
 
-    const results = []
+    const results: any[] = []
     for (const data of socialData) {
       try {
         const record = await prisma.analytics.upsert({
@@ -70,6 +63,7 @@ export async function GET(request: Request) {
             comments: data.comments,
             shares: data.shares,
             views: data.views,
+            watchTime: data.watchTime,
           },
           create: {
             platform: data.platform,
@@ -84,12 +78,33 @@ export async function GET(request: Request) {
             comments: data.comments,
             shares: data.shares,
             views: data.views,
+            watchTime: data.watchTime,
           }
         })
-        results.push({ platform: data.platform, success: true, record })
+        results.push({ 
+          platform: data.platform, 
+          success: true, 
+          data: {
+            followers: data.followers,
+            posts: data.posts,
+            likes: data.likes,
+            comments: data.comments,
+            shares: data.shares,
+            reach: data.reach,
+            views: data.views
+          }
+        })
       } catch (dbError: any) {
+        console.error(`Failed to save ${data.platform} data:`, dbError)
         results.push({ platform: data.platform, success: false, error: dbError.message })
       }
+    }
+
+    // Fetch Google Drive files
+    const gdriveResult = await fetchGoogleDriveFiles(apiKey)
+    let gdriveFiles: GoogleDriveFile[] = []
+    if (gdriveResult.success) {
+      gdriveFiles = gdriveResult.files
     }
 
     return NextResponse.json({
@@ -97,6 +112,13 @@ export async function GET(request: Request) {
       syncedAt: new Date().toISOString(),
       platforms: results.length,
       toolsAvailable: connectionTest.toolsCount,
+      socialData: results,
+      googleDrive: {
+        success: gdriveResult.success,
+        fileCount: gdriveFiles.length,
+        files: gdriveFiles.slice(0, 10).map(f => ({ id: f.id, name: f.name, type: f.mimeType })),
+        error: gdriveResult.error
+      },
       results
     })
   } catch (error: any) {

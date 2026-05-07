@@ -1,50 +1,39 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Select } from "@/components/ui/select";
-import { TrendingUp, Users, Eye, Heart, Loader2 } from "lucide-react";
-import { StatCard } from "@/components/stat-card";
-import { PlatformBadge } from "@/components/platform-badge";
-import { ReachChart } from "@/components/charts/reach-chart";
-import { ContentPieChart } from "@/components/charts/content-pie-chart";
-import { EngagementChart } from "@/components/charts/engagement-chart";
+import { TrendingUp, Users, Eye, Heart, Loader2, Calendar, BarChart3 } from "lucide-react";
 
 interface AnalyticsRecord {
   platform: string;
   date: string;
   followers: number;
+  following: number;
+  posts: number;
+  engagement: number;
   reach: number;
   impressions: number;
-  engagement: number;
+  likes: number;
+  comments: number;
+  shares: number;
   views: number;
+  watchTime: number;
 }
 
 interface PlatformData {
-  connected?: boolean;
-  followers?: number;
-  followers_count?: number;
-  subscribers?: number;
-  posts?: { reach?: number; impressions?: number };
-  stats?: { totalViews?: number };
-  viewCount?: number;
-  engagement?: { likes?: number; comments?: number };
-  media?: { type: string; productType?: string; likes: number; comments: number }[];
-  mediaCount?: number;
+  followers: number;
+  posts: number;
+  likes: number;
+  comments: number;
+  shares: number;
+  reach: number;
+  views: number;
+  impressions: number;
+  engagement: number;
 }
 
-interface OverviewResponse {
-  success?: boolean;
-  data?: {
-    facebook: PlatformData;
-    instagram: PlatformData;
-    youtube: PlatformData;
-  };
-}
-
-// Safe number display - shows "-" instead of 0 for missing data
-const displayNumber = (value: number | undefined | null, format: 'compact' | 'full' = 'full'): string => {
+const formatNumber = (value: number | undefined | null, compact = true) => {
   if (value === undefined || value === null) return '-';
-  if (format === 'compact') {
+  if (compact) {
     if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`;
     if (value >= 1000) return `${(value / 1000).toFixed(1)}K`;
   }
@@ -53,319 +42,115 @@ const displayNumber = (value: number | undefined | null, format: 'compact' | 'fu
 
 export default function AnalyticsPage() {
   const [timeRange, setTimeRange] = useState("7d");
-  const [platform, setPlatform] = useState("all");
   const [loading, setLoading] = useState(true);
-  const [accountInfo, setAccountInfo] = useState<Record<string, { name: string; id: string; followers: number | null }>>({
-    facebook: { name: 'Facebook', id: '@kontenval.id', followers: null },
-    instagram: { name: 'Instagram', id: '@kontenval.id', followers: null },
-    youtube: { name: 'YouTube', id: '@kontenvalid', followers: null },
-  });
-  const [historicalData, setHistoricalData] = useState<AnalyticsRecord[]>([]);
-  const [overviewData, setOverviewData] = useState<{
-    facebook: PlatformData | null;
-    instagram: PlatformData | null;
-    youtube: PlatformData | null;
-  }>({ facebook: null, instagram: null, youtube: null });
+  const [analyticsData, setAnalyticsData] = useState<AnalyticsRecord[]>([]);
 
-  // Fetch real data from API
+  // Fetch from API
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       try {
         const days = timeRange === "7d" ? 7 : timeRange === "30d" ? 30 : 90;
-        
-        const [overviewRes, historicalRes] = await Promise.all([
-          fetch('/api/composio/overview'),
-          fetch(`/api/analytics?days=${days}`),
-        ]);
-
-        // Process overview data
-        if (overviewRes.ok) {
-          const result = await overviewRes.json();
-          const d = result.data || {};
-          
-          setOverviewData({
-            facebook: d.facebook || null,
-            instagram: d.instagram || null,
-            youtube: d.youtube || null,
-          });
-
-          // Set account info - only set if value exists
-          setAccountInfo({
-            facebook: {
-              name: d.facebook?.name || 'kontenval.id',
-              id: d.facebook?.handle || '@kontenval.id',
-              followers: d.facebook?.followers ?? null,
-            },
-            instagram: {
-              name: d.instagram?.name || 'kontenval.id',
-              id: d.instagram?.handle || '@kontenval.id',
-              followers: d.instagram?.followers_count ?? d.instagram?.followers ?? null,
-            },
-            youtube: {
-              name: d.youtube?.name || 'kontenval id',
-              id: d.youtube?.handle || '@kontenvalid',
-              followers: d.youtube?.subscribers ?? null,
-            },
-          });
-        }
-
-        // Process historical data
-        if (historicalRes.ok) {
-          const historyResult = await historicalRes.json();
-          setHistoricalData(historyResult.data || []);
+        const response = await fetch(`/api/analytics?days=${days}`);
+        if (response.ok) {
+          const result = await response.json();
+          setAnalyticsData(result.data || []);
         }
       } catch (error) {
-        console.error('Failed to fetch analytics data:', error);
+        console.error('Failed to fetch analytics:', error);
       } finally {
         setLoading(false);
       }
     };
-
     fetchData();
   }, [timeRange]);
 
-  // Get stats using REAL data - no filling with 0
-  const getStats = () => {
-    const fb = overviewData.facebook;
-    const ig = overviewData.instagram;
-    const yt = overviewData.youtube;
+  // Calculate totals by platform
+  const getPlatformTotals = () => {
+    const platforms: Record<string, PlatformData> = {
+      FACEBOOK: { followers: 0, posts: 0, likes: 0, comments: 0, shares: 0, reach: 0, views: 0, impressions: 0, engagement: 0 },
+      INSTAGRAM: { followers: 0, posts: 0, likes: 0, comments: 0, shares: 0, reach: 0, views: 0, impressions: 0, engagement: 0 },
+      YOUTUBE: { followers: 0, posts: 0, likes: 0, comments: 0, shares: 0, reach: 0, views: 0, impressions: 0, engagement: 0 },
+    };
 
-    if (platform === "all") {
-      // Sum only existing values - check both followers and followers_count for IG
-      const fbFollowers = fb?.followers ?? 0;
-      const igFollowers = ig?.followers_count ?? ig?.followers ?? 0;
-      const ytFollowers = yt?.subscribers ?? 0;
-      const totalFollowers = fbFollowers + igFollowers + ytFollowers;
-
-      const fbReach = fb?.posts?.reach ?? 0;
-      const igReach = ig?.posts?.reach ?? 0;
-      const ytReach = yt?.stats?.totalViews ?? yt?.viewCount ?? 0;
-      const totalReach = fbReach + igReach + ytReach;
-
-      // Engagement
-      const fbEng = (fb?.engagement?.likes ?? 0) + (fb?.engagement?.comments ?? 0);
-      const igEng = (ig?.engagement?.likes ?? 0) + (ig?.engagement?.comments ?? 0);
-      const ytEng = (yt?.engagement?.likes ?? 0) + (yt?.engagement?.comments ?? 0);
-      const totalEngagement = fbEng + igEng + ytEng;
-
-      // Engagement rate
-      const engagementRate = totalFollowers > 0 && totalEngagement > 0
-        ? ((totalEngagement / totalFollowers) * 100).toFixed(1)
-        : '-';
-
-      return {
-        followers: totalFollowers || null,
-        reach: totalReach || null,
-        engagement: engagementRate,
-        views: ytReach || null,
-      };
-    } else {
-      const acc = overviewData[platform as keyof typeof overviewData];
-      if (!acc) {
-        return { followers: null, reach: null, engagement: '-', views: null };
+    for (const record of analyticsData) {
+      const p = record.platform as keyof typeof platforms;
+      if (platforms[p]) {
+        platforms[p].followers = record.followers || platforms[p].followers;
+        platforms[p].posts += record.posts || 0;
+        platforms[p].likes += record.likes || 0;
+        platforms[p].comments += record.comments || 0;
+        platforms[p].shares += record.shares || 0;
+        platforms[p].reach += record.reach || 0;
+        platforms[p].views += record.views || 0;
+        platforms[p].impressions += record.impressions || 0;
+        platforms[p].engagement += record.engagement || 0;
       }
-
-      const accFollowers = platform === 'youtube' 
-        ? acc.subscribers 
-        : acc.followers;
-      const accReach = platform === 'youtube'
-        ? (acc.stats?.totalViews ?? acc.viewCount ?? 0)
-        : (acc.posts?.reach ?? 0);
-      const accEng = (acc.engagement?.likes ?? 0) + (acc.engagement?.comments ?? 0);
-      
-      const engagementRate = accFollowers && accEng > 0
-        ? ((accEng / accFollowers) * 100).toFixed(1)
-        : '-';
-
-      return {
-        followers: accFollowers ?? null,
-        reach: accReach || null,
-        engagement: engagementRate,
-        views: platform === 'youtube' ? accReach : null,
-      };
-    }
-  };
-
-  const stats = getStats();
-  const platformLabel = platform === "all"
-    ? "All Accounts"
-    : accountInfo[platform]?.id || platform;
-
-  // Get engagement data - real values only
-  const getEngagementData = () => {
-    const fb = overviewData.facebook;
-    const ig = overviewData.instagram;
-    const yt = overviewData.youtube;
-
-    if (platform === "all") {
-      return [
-        { 
-          name: "Facebook", 
-          engagement: fb?.engagement?.likes ?? null, 
-          reach: fb?.posts?.reach ?? null
-        },
-        { 
-          name: "Instagram", 
-          engagement: ig?.engagement?.likes ?? null, 
-          reach: ig?.posts?.reach ?? null
-        },
-        { 
-          name: "YouTube", 
-          engagement: yt?.engagement?.likes ?? null, 
-          reach: yt?.stats?.totalViews ?? yt?.viewCount ?? null
-        },
-      ];
     }
 
-    const acc = overviewData[platform as keyof typeof overviewData];
-    return [
-      {
-        name: platform === "facebook" ? "Facebook" : platform === "instagram" ? "Instagram" : "YouTube",
-        engagement: acc?.engagement?.likes ?? null,
-        reach: platform === "youtube" 
-          ? (acc?.stats?.totalViews ?? acc?.viewCount ?? null)
-          : (acc?.posts?.reach ?? null),
-      },
-    ];
+    return platforms;
   };
 
-  const engagementData = getEngagementData();
-
-  // Get reach data
+  // Get reach/impressions over time for chart
   const getReachData = () => {
-    const fb = overviewData.facebook;
-    const ig = overviewData.instagram;
-    const yt = overviewData.youtube;
-
-    const today = new Date();
     const days = timeRange === "7d" ? 7 : timeRange === "30d" ? 30 : 90;
-    const dates: { display: string; iso: string }[] = [];
-    
+    const today = new Date();
+    const result: { date: string; facebook: number; instagram: number; youtube: number; total: number }[] = [];
+
     for (let i = days - 1; i >= 0; i--) {
       const date = new Date(today);
       date.setDate(date.getDate() - i);
-      dates.push({
-        display: date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }),
-        iso: date.toISOString().split('T')[0]
+      const dateStr = date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
+      
+      const dayRecords = analyticsData.filter(r => {
+        const recordDate = new Date(r.date).toDateString();
+        return recordDate === date.toDateString();
+      });
+
+      const fb = dayRecords.find(r => r.platform === 'FACEBOOK');
+      const ig = dayRecords.find(r => r.platform === 'INSTAGRAM');
+      const yt = dayRecords.find(r => r.platform === 'YOUTUBE');
+
+      result.push({
+        date: dateStr,
+        facebook: fb?.reach || 0,
+        instagram: ig?.reach || 0,
+        youtube: yt?.views || 0,
+        total: (fb?.reach || 0) + (ig?.reach || 0) + (yt?.views || 0)
       });
     }
 
-    return dates.map(({ display: dateStr, iso: dateKey }) => {
-      const dayData = historicalData.filter((r) => r.date?.includes(dateKey));
-      const fbRecord = dayData.find((r) => r.platform === 'FACEBOOK');
-      const igRecord = dayData.find((r) => r.platform === 'INSTAGRAM');
-      const ytRecord = dayData.find((r) => r.platform === 'YOUTUBE');
-
-      const fbReach = fbRecord?.reach || fb?.posts?.reach;
-      const igReach = igRecord?.reach || ig?.posts?.reach;
-      const ytReach = ytRecord?.reach || yt?.stats?.totalViews || yt?.viewCount;
-
-      const totalReach = platform === "facebook" ? fbReach 
-        : platform === "instagram" ? igReach 
-        : platform === "youtube" ? ytReach 
-        : (fbReach || 0) + (igReach || 0) + (ytReach || 0);
-
-      return {
-        date: dateStr,
-        reach: totalReach || null,
-        impressions: null,
-      };
-    });
+    return result;
   };
 
-  const reachData = getReachData();
-
-  // Get content distribution from real IG media
-  const getContentData = () => {
-    const igMedia = overviewData.instagram?.media || [];
-    
-    if (igMedia.length > 0) {
-      const reels = igMedia.filter((m) => m.type === 'VIDEO' || m.productType === 'REELS').length;
-      const images = igMedia.filter((m) => m.type === 'IMAGE').length;
-      const carousel = igMedia.filter((m) => m.type === 'CAROUSEL').length;
-      
-      const items = [
-        { name: "Reels", value: reels, color: "#E4405F" },
-        { name: "Images", value: images, color: "#833AB4" },
-        { name: "Carousel", value: carousel, color: "#F77737" },
-      ].filter(item => item.value > 0);
-      
-      if (items.length > 0) return items;
-    }
-    
-    // Fallback: show media count if exists
-    const mediaCount = overviewData.instagram?.mediaCount;
-    if (mediaCount) {
-      return [{ name: "Content", value: mediaCount, color: "#E4405F" }];
-    }
-    
-    return [];
-  };
-
-  const contentData = getContentData();
-
-  // Get breakdown data
-  const getBreakdown = () => {
-    const fb = overviewData.facebook;
-    const ig = overviewData.instagram;
-    const yt = overviewData.youtube;
-    
-    if (platform === "all") {
-      return [
-        { 
-          platform: "Facebook", 
-          followers: fb?.followers ?? null,
-          reach: fb?.posts?.reach ?? null,
-          engagement: fb?.followers && fb?.engagement?.likes 
-            ? ((fb.engagement.likes / fb.followers) * 100).toFixed(1) + '%' 
-            : '-',
-          color: "facebook" 
-        },
-        { 
-          platform: "Instagram", 
-          followers: ig?.followers ?? null,
-          reach: ig?.posts?.reach ?? null,
-          engagement: ig?.followers && ig?.engagement?.likes 
-            ? ((ig.engagement.likes / ig.followers) * 100).toFixed(1) + '%' 
-            : '-',
-          color: "instagram" 
-        },
-        { 
-          platform: "YouTube", 
-          followers: yt?.subscribers ?? null,
-          reach: yt?.stats?.totalViews ?? yt?.viewCount ?? null,
-          engagement: yt?.subscribers && yt?.engagement?.likes 
-            ? ((yt.engagement.likes / yt.subscribers) * 100).toFixed(1) + '%' 
-            : '-',
-          color: "youtube" 
-        },
-      ];
-    }
-    
-    const acc = overviewData[platform as keyof typeof overviewData];
-    if (!acc) return [];
-    
-    const followers = platform === 'youtube' ? acc.subscribers : acc.followers;
-    const reach = platform === 'youtube' 
-      ? (acc.stats?.totalViews ?? acc.viewCount ?? null)
-      : (acc.posts?.reach ?? null);
-    const engagement = followers && acc.engagement?.likes
-      ? ((acc.engagement.likes / followers) * 100).toFixed(1) + '%'
-      : '-';
-    
+  // Get engagement data
+  const getEngagementData = () => {
+    const platforms = getPlatformTotals();
     return [
-      { 
-        platform: platform === "facebook" ? "Facebook" : platform === "instagram" ? "Instagram" : "YouTube", 
-        followers,
-        reach,
-        engagement,
-        color: platform 
-      },
-    ];
+      { name: 'Facebook', value: platforms.FACEBOOK.engagement, color: '#1877F2' },
+      { name: 'Instagram', value: platforms.INSTAGRAM.engagement, color: '#E4405F' },
+      { name: 'YouTube', value: platforms.YOUTUBE.engagement, color: '#FF0000' },
+    ].filter(item => item.value > 0);
   };
 
-  const breakdown = getBreakdown();
+  // Get posts by platform
+  const getPostsData = () => {
+    const platforms = getPlatformTotals();
+    return [
+      { name: 'Facebook', value: platforms.FACEBOOK.posts, color: '#1877F2' },
+      { name: 'Instagram', value: platforms.INSTAGRAM.posts, color: '#E4405F' },
+      { name: 'YouTube', value: platforms.YOUTUBE.posts, color: '#FF0000' },
+    ].filter(item => item.value > 0);
+  };
+
+  const platformTotals = getPlatformTotals();
+  const totalFollowers = platformTotals.FACEBOOK.followers + platformTotals.INSTAGRAM.followers + platformTotals.YOUTUBE.followers;
+  const totalEngagement = platformTotals.FACEBOOK.engagement + platformTotals.INSTAGRAM.engagement + platformTotals.YOUTUBE.engagement;
+  const totalReach = platformTotals.FACEBOOK.reach + platformTotals.INSTAGRAM.reach + platformTotals.YOUTUBE.reach;
+  const totalViews = platformTotals.YOUTUBE.views;
+  const reachData = getReachData();
+  const engagementData = getEngagementData();
+  const postsData = getPostsData();
 
   if (loading) {
     return (
@@ -380,118 +165,184 @@ export default function AnalyticsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Analytics</h1>
-          <p className="text-muted-foreground mt-1">{platformLabel}</p>
+          <h1 className="text-3xl font-bold">Analytics</h1>
+          <p className="text-muted-foreground">Social media performance overview</p>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="flex flex-col items-end gap-1">
-            <span className="text-xs text-muted-foreground">Time</span>
-            <Select
-              options={[
-                { value: "7d", label: "Last 7 days" },
-                { value: "30d", label: "Last 30 days" },
-                { value: "90d", label: "Last 90 days" },
-              ]}
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <Calendar className="w-4 h-4 text-muted-foreground" />
+            <select
               value={timeRange}
               onChange={(e) => setTimeRange(e.target.value)}
-              className="w-36"
-            />
-          </div>
-          <div className="flex flex-col items-end gap-1">
-            <span className="text-xs text-muted-foreground">Account</span>
-            <Select
-              options={[
-                { value: "all", label: "All Accounts" },
-                { value: "facebook", label: "Facebook" },
-                { value: "instagram", label: "Instagram" },
-                { value: "youtube", label: "YouTube" },
-              ]}
-              value={platform}
-              onChange={(e) => setPlatform(e.target.value)}
-              className="w-40"
-            />
+              className="px-3 py-2 rounded-lg border bg-background"
+            >
+              <option value="7d">Last 7 days</option>
+              <option value="30d">Last 30 days</option>
+              <option value="90d">Last 90 days</option>
+            </select>
           </div>
         </div>
       </div>
 
-      {/* Stats - Real Data */}
+      {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard
-          title="Total Followers"
-          value={stats.followers !== null ? displayNumber(stats.followers, 'compact') : '-'}
-          icon={Users}
-        />
-        <StatCard
-          title="Avg. Reach/Views"
-          value={stats.reach !== null ? displayNumber(stats.reach, 'compact') : '-'}
-          icon={Eye}
-        />
-        <StatCard
-          title="Engagement Rate"
-          value={stats.engagement}
-          icon={Heart}
-        />
-        <StatCard
-          title="Total Views"
-          value={stats.views !== null ? displayNumber(stats.views, 'compact') : '-'}
-          icon={TrendingUp}
-        />
+        <div className="bg-card rounded-xl p-6 border">
+          <div className="flex items-center gap-3 mb-2">
+            <Users className="w-5 h-5 text-blue-500" />
+            <span className="text-sm text-muted-foreground">Total Followers</span>
+          </div>
+          <p className="text-3xl font-bold">{formatNumber(totalFollowers)}</p>
+        </div>
+        <div className="bg-card rounded-xl p-6 border">
+          <div className="flex items-center gap-3 mb-2">
+            <Eye className="w-5 h-5 text-green-500" />
+            <span className="text-sm text-muted-foreground">Total Reach</span>
+          </div>
+          <p className="text-3xl font-bold">{formatNumber(totalReach)}</p>
+        </div>
+        <div className="bg-card rounded-xl p-6 border">
+          <div className="flex items-center gap-3 mb-2">
+            <Heart className="w-5 h-5 text-pink-500" />
+            <span className="text-sm text-muted-foreground">Total Engagement</span>
+          </div>
+          <p className="text-3xl font-bold">{formatNumber(totalEngagement)}</p>
+        </div>
+        <div className="bg-card rounded-xl p-6 border">
+          <div className="flex items-center gap-3 mb-2">
+            <TrendingUp className="w-5 h-5 text-red-500" />
+            <span className="text-sm text-muted-foreground">YouTube Views</span>
+          </div>
+          <p className="text-3xl font-bold">{formatNumber(totalViews)}</p>
+        </div>
       </div>
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Engagement by Platform */}
         <div className="bg-card rounded-xl p-6 border">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-lg">Reach & Impressions</h3>
-          </div>
-          <ReachChart data={reachData} />
+          <h3 className="font-semibold text-lg mb-4">Engagement by Platform</h3>
+          {engagementData.length > 0 ? (
+            <div className="space-y-4">
+              {engagementData.map((item) => (
+                <div key={item.name}>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sm font-medium">{item.name}</span>
+                    <span className="text-sm">{formatNumber(item.value)}</span>
+                  </div>
+                  <div className="h-2 bg-secondary rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full"
+                      style={{
+                        width: `${Math.min(100, (item.value / Math.max(...engagementData.map(d => d.value))) * 100)}%`,
+                        backgroundColor: item.color
+                      }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-center text-muted-foreground py-8">No engagement data yet</p>
+          )}
         </div>
 
+        {/* Content Distribution */}
         <div className="bg-card rounded-xl p-6 border">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-lg">Content Distribution</h3>
-          </div>
-          {contentData.length > 0 ? (
-            <ContentPieChart data={contentData} />
-          ) : (
-            <div className="text-center py-8 text-muted-foreground">
-              No content data available
+          <h3 className="font-semibold text-lg mb-4">Content Distribution</h3>
+          {postsData.length > 0 ? (
+            <div className="space-y-4">
+              {postsData.map((item) => (
+                <div key={item.name}>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sm font-medium">{item.name}</span>
+                    <span className="text-sm">{item.value} posts</span>
+                  </div>
+                  <div className="h-2 bg-secondary rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full"
+                      style={{
+                        width: `${Math.min(100, (item.value / Math.max(...postsData.map(d => d.value))) * 100)}%`,
+                        backgroundColor: item.color
+                      }}
+                    />
+                  </div>
+                </div>
+              ))}
             </div>
+          ) : (
+            <p className="text-center text-muted-foreground py-8">No content data yet</p>
           )}
         </div>
       </div>
 
-      {/* Engagement & Platform Breakdown */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-card rounded-xl p-6 border">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-lg">Engagement by Platform</h3>
-          </div>
-          <EngagementChart data={engagementData} />
-        </div>
-
-        <div className="bg-card rounded-xl p-6 border">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-lg">Platform Breakdown</h3>
-          </div>
-          <div className="space-y-4">
-            {breakdown.map((item) => (
-              <div key={item.platform} className="flex items-center justify-between p-4 bg-secondary dark:bg-secondary/50 rounded-lg border border-transparent dark:border-border/50">
-                <div className="flex items-center gap-3">
-                  <PlatformBadge platform={item.color} />
-                  <span className="font-medium text-foreground">{item.platform}</span>
-                </div>
-                <div className="text-right">
-                  <p className="font-semibold text-foreground">
-                    {item.followers !== null ? displayNumber(item.followers) : '-'} followers
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    Reach: {item.reach !== null ? displayNumber(item.reach, 'compact') : '-'}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
+      {/* Platform Breakdown */}
+      <div className="bg-card rounded-xl p-6 border">
+        <h3 className="font-semibold text-lg mb-4">Platform Breakdown</h3>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b">
+                <th className="text-left py-3 px-4 font-medium">Platform</th>
+                <th className="text-right py-3 px-4 font-medium">Followers</th>
+                <th className="text-right py-3 px-4 font-medium">Likes</th>
+                <th className="text-right py-3 px-4 font-medium">Comments</th>
+                <th className="text-right py-3 px-4 font-medium">Shares</th>
+                <th className="text-right py-3 px-4 font-medium">Reach/Views</th>
+              </tr>
+            </thead>
+            <tbody>
+              {platformTotals.FACEBOOK.followers > 0 && (
+                <tr className="border-b">
+                  <td className="py-3 px-4">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold text-xs">f</div>
+                      <span className="font-medium">Facebook</span>
+                    </div>
+                  </td>
+                  <td className="text-right py-3 px-4">{formatNumber(platformTotals.FACEBOOK.followers)}</td>
+                  <td className="text-right py-3 px-4">{formatNumber(platformTotals.FACEBOOK.likes)}</td>
+                  <td className="text-right py-3 px-4">{formatNumber(platformTotals.FACEBOOK.comments)}</td>
+                  <td className="text-right py-3 px-4">{formatNumber(platformTotals.FACEBOOK.shares)}</td>
+                  <td className="text-right py-3 px-4">{formatNumber(platformTotals.FACEBOOK.reach)}</td>
+                </tr>
+              )}
+              {platformTotals.INSTAGRAM.followers > 0 && (
+                <tr className="border-b">
+                  <td className="py-3 px-4">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400 rounded-full flex items-center justify-center text-white font-bold text-xs">IG</div>
+                      <span className="font-medium">Instagram</span>
+                    </div>
+                  </td>
+                  <td className="text-right py-3 px-4">{formatNumber(platformTotals.INSTAGRAM.followers)}</td>
+                  <td className="text-right py-3 px-4">{formatNumber(platformTotals.INSTAGRAM.likes)}</td>
+                  <td className="text-right py-3 px-4">{formatNumber(platformTotals.INSTAGRAM.comments)}</td>
+                  <td className="text-right py-3 px-4">{formatNumber(platformTotals.INSTAGRAM.shares)}</td>
+                  <td className="text-right py-3 px-4">{formatNumber(platformTotals.INSTAGRAM.reach)}</td>
+                </tr>
+              )}
+              {platformTotals.YOUTUBE.followers > 0 && (
+                <tr className="border-b">
+                  <td className="py-3 px-4">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 bg-red-500 rounded-full flex items-center justify-center text-white font-bold text-xs">YT</div>
+                      <span className="font-medium">YouTube</span>
+                    </div>
+                  </td>
+                  <td className="text-right py-3 px-4">{formatNumber(platformTotals.YOUTUBE.followers)}</td>
+                  <td className="text-right py-3 px-4">{formatNumber(platformTotals.YOUTUBE.likes)}</td>
+                  <td className="text-right py-3 px-4">{formatNumber(platformTotals.YOUTUBE.comments)}</td>
+                  <td className="text-right py-3 px-4">{formatNumber(platformTotals.YOUTUBE.shares)}</td>
+                  <td className="text-right py-3 px-4">{formatNumber(platformTotals.YOUTUBE.views)}</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+          {totalFollowers === 0 && (
+            <p className="text-center text-muted-foreground py-8">
+              No data available. Run the sync cron to fetch social media data.
+            </p>
+          )}
         </div>
       </div>
     </div>
