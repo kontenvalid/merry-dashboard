@@ -96,6 +96,7 @@ export async function POST(request: Request) {
           // API key exists but needs re-auth with Composio
           const callbackUrl = `${process.env.NEXTAUTH_URL}/api/composio/callback`
           const authUrl = `https://connect.composio.dev/mcp?callback_url=${encodeURIComponent(callbackUrl)}&api_key=${consumerApiKey}`
+          const savedMcpUrl = `https://backend.composio.dev/v3/mcp?api_key=${consumerApiKey}`
           
           // Still save the key (might be valid)
           await saveApiKey(userId, 'composio', consumerApiKey, {
@@ -109,7 +110,7 @@ export async function POST(request: Request) {
             connected: false,
             message: 'API key saved but needs re-authentication with Composio',
             redirectUrl: authUrl,
-            mcpUrl: mcpUrl,
+            mcpUrl: savedMcpUrl,
             headers: {
               'x-api-key': consumerApiKey
             }
