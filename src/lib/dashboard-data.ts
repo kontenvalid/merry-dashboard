@@ -2,13 +2,6 @@
 // Reads from database (cached from cron) and composes for UI
 
 import prisma from './prisma'
-import { getApiKey } from './api-key-store'
-import { PlatformData, DashboardData } from './types'
-
-// Platform IDs
-const FB_PAGE_ID = '1080250281836384'
-const IG_USER_ID = '27556603287273697'
-const YT_CHANNEL_ID = 'UCK2C25kK4E3PR6w0gPNCjaA'
 
 // Meta Ads accounts
 const META_ADS_ACCOUNTS = [
@@ -22,6 +15,52 @@ function getTodayDate() {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   return today
+}
+
+export interface PlatformData {
+  connected: boolean;
+  name: string;
+  handle: string;
+  followers?: number;
+  followers_count?: number;
+  subscribers?: number;
+  reach?: number;
+  views?: number;
+  posts?: number;
+  mediaCount?: number;
+  videoCount?: number;
+  viewCount?: number;
+  engagement?: {
+    likes?: number;
+    comments?: number;
+    saves?: number;
+    shares?: number;
+  };
+  posts_stats?: { reach?: number; impressions?: number };
+  link?: string;
+  raw?: any;
+}
+
+export interface DashboardData {
+  facebook: PlatformData;
+  instagram: PlatformData;
+  youtube: PlatformData;
+  metaAds: {
+    connected: boolean;
+    accounts: any[];
+    campaigns: any[];
+    summary: {
+      totalSpend: number;
+      totalCampaigns: number;
+      avgCPC: number;
+    };
+  };
+  googleDrive: {
+    connected: boolean;
+    fileCount: number;
+  };
+  timestamp: string;
+  source: string;
 }
 
 // Fetch dashboard data from database
@@ -56,18 +95,17 @@ export async function fetchDashboardData(userId: string): Promise<DashboardData>
             handle: '@kontenval.id',
             followers: record.followers,
             posts: record.posts,
-            engagement: record.engagement,
             reach: record.reach,
-            link: 'https://www.facebook.com/kontenval.id',
             engagement: {
               likes: record.likes,
               comments: record.comments,
               shares: record.shares,
             },
-            posts: {
+            posts_stats: {
               reach: record.reach,
               impressions: record.impressions,
-            }
+            },
+            link: 'https://www.facebook.com/kontenval.id'
           }
           break
         case 'INSTAGRAM':
@@ -77,31 +115,33 @@ export async function fetchDashboardData(userId: string): Promise<DashboardData>
             handle: '@kontenval.id',
             followers: record.followers,
             posts: record.posts,
-            engagement: record.engagement,
             mediaCount: record.posts,
+            reach: record.reach,
             engagement: {
               likes: record.likes,
               comments: record.comments,
             },
-            posts: {
+            posts_stats: {
               reach: record.reach,
               impressions: record.impressions,
-            }
+            },
+            link: 'https://instagram.com/kontenval.id'
           }
           break
         case 'YOUTUBE':
           result.youtube = {
-            connected: record.subscribers > 0 || record.followers > 0,
+            connected: record.followers > 0,
             name: 'YouTube Channel',
             handle: '@kontenvalid',
-            subscribers: record.subscribers || record.followers,
+            subscribers: record.followers,
             videoCount: record.posts,
             viewCount: record.views,
             views: record.views,
             engagement: {
               likes: record.likes,
               comments: record.comments,
-            }
+            },
+            link: 'https://youtube.com/@kontenvalid'
           }
           break
       }
@@ -112,76 +152,11 @@ export async function fetchDashboardData(userId: string): Promise<DashboardData>
       result.source = 'no_data'
     }
 
-    // Try to get Meta Ads data
-    const metaToken = await getApiKey(userId, 'meta_graph')
-    if (metaToken) {
-      result.metaAds = await fetchMetaAdsData(metaToken)
-    }
-
     return result
   } catch (error: any) {
     console.error('Dashboard data fetch error:', error)
     result.source = 'error'
     return result
-  }
-}
-
-// Fetch Meta Ads data
-async function fetchMetaAdsData(accessToken: string) {
-  const campaigns: any[] = []
-  let totalSpend = 0
-
-  for (const account of META_ADS_ACCOUNTS) {
-    try {
-      const campaignsRes = await fetch(
-        `https://graph.facebook.com/v21.0/${account.id}/campaigns?fields=id,name,status,daily_budget,spend&access_token=${accessToken}`
-      )
-      
-      if (campaignsRes.ok) {
-        const data = await campaignsRes.json()
-        
-        for (const campaign of data.data || []) {
-          const insightsRes = await fetch(
-            `https://graph.facebook.com/v21.0/${campaign.id}/insights?fields=spend,impressions,clicks&access_token=${accessToken}`
-          )
-          
-          const insights: any = {}
-          if (insightsRes.ok) {
-            const insightsData = await insightsRes.json()
-            Object.assign(insights, insightsData.data?.[0] || {})
-          }
-
-          const spend = parseFloat(insights.spend || campaign.spend || '0')
-          campaigns.push({
-            accountId: account.id,
-            accountName: account.name,
-            currency: account.currency,
-            name: campaign.name,
-            status: campaign.status,
-            spend: spend || undefined,
-            impressions: parseInt(insights.impressions || '0') || undefined,
-            clicks: parseInt(insights.clicks || '0') || undefined,
-          })
-
-          totalSpend += spend
-        }
-      }
-    } catch (e) {
-      console.warn(`Failed to fetch campaigns for ${account.id}`)
-    }
-  }
-
-  return {
-    connected: campaigns.length > 0 || !!accessToken,
-    accounts: META_ADS_ACCOUNTS,
-    campaigns,
-    summary: {
-      totalSpend,
-      totalCampaigns: campaigns.length,
-      avgCPC: campaigns.reduce((acc, c) => acc + (c.clicks || 0), 0) > 0 
-        ? totalSpend / campaigns.reduce((acc, c) => acc + (c.clicks || 0), 0) 
-        : 0
-    }
   }
 }
 
