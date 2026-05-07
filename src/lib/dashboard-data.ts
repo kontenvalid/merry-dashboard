@@ -75,8 +75,8 @@ export async function fetchDashboardData(userId: string): Promise<DashboardData>
 
   try {
     // Get API keys from database - both composio and meta_graph
-    const apiKey = await getApiKey(userId, 'composio')
-    const metaToken = await getApiKey(userId, 'meta_graph')
+    const apiKey = await getApiKey(userId, 'composio') || process.env.COMPOSIO_API_KEY
+    const metaToken = await getApiKey(userId, 'meta_graph') || process.env.META_ACCESS_TOKEN
     
     // If no API keys configured, return empty result
     if (!apiKey && !metaToken) {
