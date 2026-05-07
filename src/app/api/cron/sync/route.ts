@@ -178,10 +178,13 @@ export async function GET(request: Request) {
         // Update GDrive file count in settings
         await prisma.dashboardSettings.upsert({
           where: { userId },
-          update: { timezone: gdriveResult.folderId || 'default' },
+          update: { 
+            timezone: 'gdrive',
+            googleDriveData: JSON.stringify({ fileCount: gdriveResult.files.length })
+          },
           create: { 
             userId, 
-            timezone: gdriveResult.folderId || 'default',
+            timezone: 'gdrive',
             googleDriveData: JSON.stringify({ fileCount: gdriveResult.files.length })
           }
         })

@@ -377,7 +377,7 @@ export default function DashboardPage() {
               View Details →
             </button>
           </div>
-          {data?.metaAds.totalCampaigns > 0 ? (
+          {(data?.metaAds?.totalCampaigns ?? 0) > 0 ? (
             <>
               <div className="grid grid-cols-3 gap-4 mb-4">
                 <div>
@@ -429,7 +429,7 @@ export default function DashboardPage() {
               <h3 className="font-semibold">Google Drive</h3>
             </div>
           </div>
-          {data?.googleDrive.fileCount > 0 ? (
+          {(data?.googleDrive?.fileCount ?? 0) > 0 ? (
             <div className="text-center py-4">
               <p className="text-4xl font-bold">{data?.googleDrive.fileCount}</p>
               <p className="text-sm text-muted-foreground">files synced</p>

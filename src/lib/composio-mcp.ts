@@ -38,6 +38,13 @@ export interface GoogleDriveFile {
   webViewLink: string
 }
 
+export interface GoogleDriveResult {
+  success: boolean
+  files: GoogleDriveFile[]
+  folderId?: string
+  error?: string
+}
+
 // Call MCP endpoint with JSON-RPC 2.0
 async function callMcp(apiKey: string, method: string, params: any): Promise<McpToolResult> {
   const body = JSON.stringify({
@@ -558,7 +565,7 @@ export async function getConnectionStatus(apiKey: string) {
 }
 
 // Fetch Google Drive files
-export async function fetchGoogleDriveFiles(apiKey: string): Promise<{ success: boolean; files: GoogleDriveFile[]; error?: string }> {
+export async function fetchGoogleDriveFiles(apiKey: string): Promise<GoogleDriveResult> {
   console.log('📁 Fetching Google Drive files...')
   
   try {
