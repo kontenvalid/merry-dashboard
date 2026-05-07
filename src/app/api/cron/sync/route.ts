@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 
-// HARDCODED KEYS FOR NOW - to be replaced with DB storage
 const COMPOSIO_API_KEY = 'ck_81LPoF-vaCnWO8LTJ1nF'
+const META_ACCESS_TOKEN = 'EAAOzDuZB9NWIBoBACZCZBdZAXaZB6ZAQLZAWLqZBsbOQ2fOZCtZCZAXP6ZBxZCZCZAGZBZBhKLXZAqZBZBdL7ZBZCZBg8OZBZBZBZBZBZBZBZBZBZBnZBnZCZBZBZBZBZBnZCZBZBZBZBZBnZBnZBZBZBZBZBZBZBZBZBZBnZBZBZBZBZBZBZBZBZBZBnZBZBZBZBZBZBZBZBZBZBnZBZBZBZBZBZBZBZBZBZBnZBZBZBZBZBZBZBZBZBnZBZBZBZBZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZBZBZBZBZBnZBZB001'
 
 // Meta Ads accounts
 const META_ADS_ACCOUNTS = [
@@ -34,33 +34,48 @@ async function callMcp(method: string, params: any) {
   return JSON.parse(text)
 }
 
-async function executeMultiTools(toolName: string, args: any) {
-  const result = await callMcp('tools/call', {
-    name: 'COMPOSIO_MULTI_EXECUTE_TOOL',
-    arguments: {
-      current_step: 'FETCHING',
-      thought: 'Fetching data',
-      tools: [{ tool_slug: toolName, arguments: args }],
-      sync_response_to_workbench: false
+async function executeTool(toolName: string, args: any) {
+  console.log(`🔧 Executing ${toolName} with args:`, JSON.stringify(args))
+  try {
+    const result = await callMcp('tools/call', {
+      name: 'COMPOSIO_MULTI_EXECUTE_TOOL',
+      arguments: {
+        current_step: 'FETCHING',
+        thought: `Fetching ${toolName} data`,
+        tools: [{ tool_slug: toolName, arguments: args }],
+        sync_response_to_workbench: false
+      }
+    })
+    
+    const text = result?.result?.content?.[0]?.text
+    console.log(`📤 ${toolName} response:`, text?.substring(0, 200))
+    
+    if (!text) {
+      console.log(`❌ ${toolName}: No text response`)
+      return null
     }
-  })
-  return result?.result?.content?.[0]?.text
+    
+    return JSON.parse(text)
+  } catch (e: any) {
+    console.error(`❌ ${toolName} error:`, e.message)
+    return null
+  }
 }
 
 async function fetchFacebookData() {
   console.log('📘 Fetching Facebook data...')
   try {
-    const text = await executeMultiTools('FACEBOOK_GET_PAGE_POSTS', {
+    const data = await executeTool('FACEBOOK_GET_PAGE_POSTS', {
       page_id: '1080250281836384',
-      limit: 10,
-      fields: 'id,message,created_time,permalink_url,shares,reactions.summary(true),comments.summary(true)'
+      limit: 10
     })
     
-    if (!text) return null
+    if (!data || !data.data) {
+      console.log('❌ Facebook: No data returned')
+      return null
+    }
     
-    const posts = JSON.parse(text)
-    const postsArray = posts?.data || []
-    
+    const postsArray = data.data
     let likes = 0, comments = 0, shares = 0
     for (const post of postsArray) {
       likes += post.reactions?.summary?.total_count || 0
@@ -83,7 +98,7 @@ async function fetchFacebookData() {
       watchTime: 0
     }
   } catch (e: any) {
-    console.error('FB error:', e)
+    console.error('FB fatal error:', e)
     return null
   }
 }
@@ -91,16 +106,17 @@ async function fetchFacebookData() {
 async function fetchInstagramData() {
   console.log('📷 Fetching Instagram data...')
   try {
-    const text = await executeMultiTools('INSTAGRAM_GET_IG_USER_MEDIA', {
+    const data = await executeTool('INSTAGRAM_GET_IG_USER_MEDIA', {
       ig_user_id: '27556603287273697',
       limit: 10
     })
     
-    if (!text) return null
+    if (!data || !data.data) {
+      console.log('❌ Instagram: No data returned')
+      return null
+    }
     
-    const media = JSON.parse(text)
-    const mediaArray = media?.data || []
-    
+    const mediaArray = data.data
     let likes = 0, comments = 0
     for (const item of mediaArray) {
       likes += item.like_count || 0
@@ -122,7 +138,7 @@ async function fetchInstagramData() {
       watchTime: 0
     }
   } catch (e: any) {
-    console.error('IG error:', e)
+    console.error('IG fatal error:', e)
     return null
   }
 }
@@ -130,15 +146,16 @@ async function fetchInstagramData() {
 async function fetchYoutubeData() {
   console.log('📺 Fetching YouTube data...')
   try {
-    const text = await executeMultiTools('YOUTUBE_GET_CHANNEL_STATISTICS', {
+    const data = await executeTool('YOUTUBE_GET_CHANNEL_STATISTICS', {
       channel_id: 'UCK2C25kK4E3PR6w0gPNCjaA'
     })
     
-    if (!text) return null
+    if (!data) {
+      console.log('❌ YouTube: No data returned')
+      return null
+    }
     
-    const stats = JSON.parse(text)
-    const statistics = stats?.statistics || stats || {}
-    
+    const statistics = data.statistics || data
     return {
       platform: 'YOUTUBE' as const,
       followers: parseInt(statistics.subscriberCount || '0'),
@@ -154,21 +171,47 @@ async function fetchYoutubeData() {
       watchTime: 0
     }
   } catch (e: any) {
-    console.error('YT error:', e)
+    console.error('YT fatal error:', e)
     return null
   }
 }
 
-async function fetchMetaAdsData(accessToken: string) {
+async function fetchGoogleDriveData() {
+  console.log('📁 Fetching Google Drive data...')
+  try {
+    const data = await executeTool('GOOGLEDRIVE_LIST_FILES', {
+      max_results: 100
+    })
+    
+    if (!data || !data.files) {
+      console.log('❌ Google Drive: No data returned')
+      return null
+    }
+    
+    return {
+      fileCount: data.files.length || 0,
+      files: data.files.slice(0, 10)
+    }
+  } catch (e: any) {
+    console.error('GDrive fatal error:', e)
+    return null
+  }
+}
+
+async function fetchMetaAdsData() {
+  console.log('💰 Fetching Meta Ads data (direct Graph API)...')
   const campaigns: any[] = []
   let totalSpend = 0
 
   for (const account of META_ADS_ACCOUNTS) {
     try {
       const res = await fetch(
-        `${META_API_BASE}/${account.id}/campaigns?fields=id,name,status,daily_budget,spend&access_token=${accessToken}`
+        `${META_API_BASE}/${account.id}/campaigns?fields=id,name,status,daily_budget,spend&access_token=${META_ACCESS_TOKEN}`
       )
-      if (!res.ok) continue
+      if (!res.ok) {
+        console.log(`❌ Meta Ads ${account.id}: HTTP ${res.status}`)
+        continue
+      }
       
       const data = await res.json()
       for (const campaign of data.data || []) {
@@ -182,87 +225,117 @@ async function fetchMetaAdsData(accessToken: string) {
         })
         totalSpend += spend
       }
-    } catch (e) {
-      console.warn(`Meta Ads error for ${account.id}:`, e)
+      console.log(`✅ Meta Ads ${account.name}: ${data.data?.length || 0} campaigns, $${spend.toFixed(2)}`)
+    } catch (e: any) {
+      console.warn(`⚠️ Meta Ads error for ${account.id}:`, e.message)
     }
   }
+  
   return { campaigns, totalSpend }
 }
 
 export async function GET() {
   try {
-    const userId = 'kontenval.id@gmail.com'
     const results: any = {
       syncedAt: new Date().toISOString(),
       socialMedia: [],
       metaAds: null,
+      googleDrive: null,
       errors: []
     }
 
-    // Test MCP connection first
+    // Test MCP connection
     console.log('🔗 Testing MCP connection...')
     const mcpTest = await callMcp('tools/list', {})
     if (!mcpTest.result) {
-      results.errors.push('MCP connection failed: ' + JSON.stringify(mcpTest))
+      results.errors.push('MCP connection failed')
       return NextResponse.json(results)
     }
-    console.log('✅ MCP connected')
-
-    // Fetch all social media data
-    const [fb, ig, yt] = await Promise.allSettled([
-      fetchFacebookData(),
-      fetchInstagramData(),
-      fetchYoutubeData()
-    ])
+    console.log('✅ MCP connected, tools available:', Object.keys(mcpTest.result).length)
 
     const today = new Date()
     today.setHours(0, 0, 0, 0)
 
-    // Save Facebook
-    if (fb.status === 'fulfilled' && fb.value) {
-      const d = fb.value
+    // Fetch all data in parallel
+    const [fbResult, igResult, ytResult, gdriveResult, metaResult] = await Promise.allSettled([
+      fetchFacebookData(),
+      fetchInstagramData(),
+      fetchYoutubeData(),
+      fetchGoogleDriveData(),
+      fetchMetaAdsData()
+    ])
+
+    // Process Facebook
+    if (fbResult.status === 'fulfilled' && fbResult.value) {
+      const d = fbResult.value
       await prisma.analytics.upsert({
         where: { platform_date: { platform: 'FACEBOOK', date: today } },
-        update: { followers: d.followers, posts: d.posts, likes: d.likes, comments: d.comments, shares: d.shares, engagement: d.engagement, reach: d.reach, impressions: d.impressions },
-        create: { platform: 'FACEBOOK', date: today, followers: d.followers, posts: d.posts, likes: d.likes, comments: d.comments, shares: d.shares, engagement: d.engagement, reach: d.reach, impressions: d.impressions }
+        update: { followers: d.followers, posts: d.posts, likes: d.likes, comments: d.comments, shares: d.shares, engagement: d.engagement, reach: d.reach },
+        create: { platform: 'FACEBOOK', date: today, followers: d.followers, posts: d.posts, likes: d.likes, comments: d.comments, shares: d.shares, engagement: d.engagement, reach: d.reach }
       })
-      results.socialMedia.push({ platform: 'FACEBOOK', success: true })
+      results.socialMedia.push({ platform: 'FACEBOOK', success: true, data: d })
       console.log('✅ Facebook saved:', d)
+    } else {
+      const err = fbResult.reason?.message || 'Failed'
+      results.errors.push({ platform: 'FACEBOOK', error: err })
+      console.log('❌ Facebook failed:', err)
     }
 
-    // Save Instagram
-    if (ig.status === 'fulfilled' && ig.value) {
-      const d = ig.value
+    // Process Instagram
+    if (igResult.status === 'fulfilled' && igResult.value) {
+      const d = igResult.value
       await prisma.analytics.upsert({
         where: { platform_date: { platform: 'INSTAGRAM', date: today } },
-        update: { followers: d.followers, posts: d.posts, likes: d.likes, comments: d.comments, engagement: d.engagement, reach: d.reach, impressions: d.impressions },
-        create: { platform: 'INSTAGRAM', date: today, followers: d.followers, posts: d.posts, likes: d.likes, comments: d.comments, engagement: d.engagement, reach: d.reach, impressions: d.impressions }
+        update: { followers: d.followers, posts: d.posts, likes: d.likes, comments: d.comments, engagement: d.engagement, reach: d.reach },
+        create: { platform: 'INSTAGRAM', date: today, followers: d.followers, posts: d.posts, likes: d.likes, comments: d.comments, engagement: d.engagement, reach: d.reach }
       })
-      results.socialMedia.push({ platform: 'INSTAGRAM', success: true })
+      results.socialMedia.push({ platform: 'INSTAGRAM', success: true, data: d })
       console.log('✅ Instagram saved:', d)
+    } else {
+      const err = igResult.reason?.message || 'Failed'
+      results.errors.push({ platform: 'INSTAGRAM', error: err })
+      console.log('❌ Instagram failed:', err)
     }
 
-    // Save YouTube
-    if (yt.status === 'fulfilled' && yt.value) {
-      const d = yt.value
+    // Process YouTube
+    if (ytResult.status === 'fulfilled' && ytResult.value) {
+      const d = ytResult.value
       await prisma.analytics.upsert({
         where: { platform_date: { platform: 'YOUTUBE', date: today } },
         update: { followers: d.followers, posts: d.posts, likes: d.likes, comments: d.comments, views: d.views, engagement: d.engagement },
         create: { platform: 'YOUTUBE', date: today, followers: d.followers, posts: d.posts, likes: d.likes, comments: d.comments, views: d.views, engagement: d.engagement }
       })
-      results.socialMedia.push({ platform: 'YOUTUBE', success: true })
+      results.socialMedia.push({ platform: 'YOUTUBE', success: true, data: d })
       console.log('✅ YouTube saved:', d)
+    } else {
+      const err = ytResult.reason?.message || 'Failed'
+      results.errors.push({ platform: 'YOUTUBE', error: err })
     }
 
+    // Process Meta Ads
+    if (metaResult.status === 'fulfilled' && metaResult.value) {
+      results.metaAds = metaResult.value
+      console.log('✅ Meta Ads saved:', metaResult.value)
+    }
+
+    // Process Google Drive
+    if (gdriveResult.status === 'fulfilled' && gdriveResult.value) {
+      results.googleDrive = gdriveResult.value
+      console.log('✅ Google Drive saved:', gdriveResult.value)
+    }
+
+    console.log('📊 Final results:', JSON.stringify(results, null, 2))
+    
     return NextResponse.json({
       success: results.errors.length === 0,
       ...results
     })
   } catch (error: any) {
-    console.error('Sync error:', error)
+    console.error('Sync fatal error:', error)
     return NextResponse.json({
       success: false,
-      error: error.message
+      error: error.message,
+      stack: error.stack
     }, { status: 500 })
   }
 }
