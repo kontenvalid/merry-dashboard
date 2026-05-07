@@ -225,7 +225,8 @@ async function fetchMetaAdsData() {
         })
         totalSpend += spend
       }
-      console.log(`✅ Meta Ads ${account.name}: ${data.data?.length || 0} campaigns, $${spend.toFixed(2)}`)
+      const accountTotalSpend = data.data?.reduce((sum: number, c: any) => sum + parseFloat(c.spend || '0'), 0) || 0
+      console.log(`✅ Meta Ads ${account.name}: ${data.data?.length || 0} campaigns, $${accountTotalSpend.toFixed(2)} total`)
     } catch (e: any) {
       console.warn(`⚠️ Meta Ads error for ${account.id}:`, e.message)
     }
@@ -276,7 +277,7 @@ export async function GET() {
       results.socialMedia.push({ platform: 'FACEBOOK', success: true, data: d })
       console.log('✅ Facebook saved:', d)
     } else {
-      const err = fbResult.reason?.message || 'Failed'
+      const err = (fbResult as any).reason?.message || 'Failed'
       results.errors.push({ platform: 'FACEBOOK', error: err })
       console.log('❌ Facebook failed:', err)
     }
@@ -292,7 +293,7 @@ export async function GET() {
       results.socialMedia.push({ platform: 'INSTAGRAM', success: true, data: d })
       console.log('✅ Instagram saved:', d)
     } else {
-      const err = igResult.reason?.message || 'Failed'
+      const err = (igResult as any).reason?.message || 'Failed'
       results.errors.push({ platform: 'INSTAGRAM', error: err })
       console.log('❌ Instagram failed:', err)
     }
@@ -308,7 +309,7 @@ export async function GET() {
       results.socialMedia.push({ platform: 'YOUTUBE', success: true, data: d })
       console.log('✅ YouTube saved:', d)
     } else {
-      const err = ytResult.reason?.message || 'Failed'
+      const err = (ytResult as any).reason?.message || 'Failed'
       results.errors.push({ platform: 'YOUTUBE', error: err })
     }
 
