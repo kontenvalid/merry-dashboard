@@ -1,157 +1,114 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
-import { getConsumerApiKey } from '@/lib/composio-store'
+import { getApiKey } from '@/lib/api-key-store'
+import { fetchAllSocialData, testMcpConnection } from '@/lib/composio-mcp'
 
-// Cron configuration for Vercel
-export const dynamic = 'force-dynamic'
-export const maxDuration = 60 // Max 60 seconds for cron
-
-// This endpoint will be called by Vercel Cron daily at 6 AM
-// Configure in vercel.json: { "crons": [{ "path": "/api/cron/sync", "schedule": "0 6 * * *" }] }
-
+// GET - Manual trigger or scheduled sync
 export async function GET(request: Request) {
-  // Verify cron secret (optional security)
-  const authHeader = request.headers.get('authorization')
-  const cronSecret = process.env.CRON_SECRET
-  
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  const startTime = Date.now()
-  const results: any = {
-    startTime: new Date().toISOString(),
-    syncs: [],
-    errors: []
-  }
-
   try {
-    // Fetch current data from Composio overview
-    const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/composio/overview`)
+    // Optional: verify cron secret for scheduled jobs
+    const authHeader = request.headers.get('authorization')
+    const cronSecret = process.env.CRON_SECRET || 'merry-cron-secret'
     
-    if (!response.ok) {
-      throw new Error('Failed to fetch overview data from Composio')
+    // For demo, allow without auth. In production, check auth
+    // if (authHeader !== `Bearer ${cronSecret}`) {
+    //   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    // }
+
+    // Get user from query or use default
+    const { searchParams } = new URL(request.url)
+    const userId = searchParams.get('userId') || 'kontenval.id@gmail.com'
+
+    // Get API key from database
+    const apiKey = await getApiKey(userId, 'composio')
+
+    if (!apiKey) {
+      return NextResponse.json({
+        success: false,
+        error: 'No Composio API key found',
+        message: 'Please configure Composio API key in Settings'
+      }, { status: 400 })
     }
 
-    const overviewData = await response.json()
-    const { data } = overviewData
+    // Test MCP connection first
+    const connectionTest = await testMcpConnection(apiKey)
+    
+    if (!connectionTest.success) {
+      return NextResponse.json({
+        success: false,
+        error: 'MCP connection failed',
+        details: connectionTest.error,
+        message: 'Failed to connect to Composio MCP. Please check your API key.'
+      }, { status: 500 })
+    }
 
+    // Fetch all social media data
+    const socialData = await fetchAllSocialData(apiKey)
+
+    // Store results in database
     const today = new Date()
     today.setHours(0, 0, 0, 0)
 
-    // Sync Facebook data
-    if (data?.facebook) {
+    const results = []
+    for (const data of socialData) {
       try {
-        await prisma.analytics.upsert({
+        const record = await prisma.analytics.upsert({
           where: {
             platform_date: {
-              platform: 'FACEBOOK',
+              platform: data.platform,
               date: today
             }
           },
           update: {
-            followers: data.facebook.followers || 0,
-            reach: data.facebook.posts?.reach || 0,
-            impressions: data.facebook.posts?.impressions || 0,
-            engagement: (data.facebook.engagement?.likes || 0) + 
-                       (data.facebook.engagement?.comments || 0) +
-                       (data.facebook.engagement?.shares || 0)
+            followers: data.followers,
+            following: data.following,
+            posts: data.posts,
+            engagement: data.engagement,
+            reach: data.reach,
+            impressions: data.impressions,
+            likes: data.likes,
+            comments: data.comments,
+            shares: data.shares,
+            views: data.views,
           },
           create: {
-            platform: 'FACEBOOK',
+            platform: data.platform,
             date: today,
-            followers: data.facebook.followers || 0,
-            reach: data.facebook.posts?.reach || 0,
-            impressions: data.facebook.posts?.impressions || 0,
-            engagement: (data.facebook.engagement?.likes || 0) + 
-                       (data.facebook.engagement?.comments || 0) +
-                       (data.facebook.engagement?.shares || 0)
+            followers: data.followers,
+            following: data.following,
+            posts: data.posts,
+            engagement: data.engagement,
+            reach: data.reach,
+            impressions: data.impressions,
+            likes: data.likes,
+            comments: data.comments,
+            shares: data.shares,
+            views: data.views,
           }
         })
-        results.syncs.push({ platform: 'FACEBOOK', status: 'success' })
-      } catch (error: any) {
-        results.errors.push({ platform: 'FACEBOOK', error: error.message })
+        results.push({ platform: data.platform, success: true, record })
+      } catch (dbError: any) {
+        results.push({ platform: data.platform, success: false, error: dbError.message })
       }
     }
 
-    // Sync Instagram data
-    if (data?.instagram) {
-      try {
-        await prisma.analytics.upsert({
-          where: {
-            platform_date: {
-              platform: 'INSTAGRAM',
-              date: today
-            }
-          },
-          update: {
-            followers: data.instagram.followers || 0,
-            reach: data.instagram.posts?.reach || 0,
-            impressions: data.instagram.posts?.impressions || 0,
-            engagement: (data.instagram.engagement?.likes || 0) + 
-                       (data.instagram.engagement?.comments || 0)
-          },
-          create: {
-            platform: 'INSTAGRAM',
-            date: today,
-            followers: data.instagram.followers || 0,
-            reach: data.instagram.posts?.reach || 0,
-            impressions: data.instagram.posts?.impressions || 0,
-            engagement: (data.instagram.engagement?.likes || 0) + 
-                       (data.instagram.engagement?.comments || 0)
-          }
-        })
-        results.syncs.push({ platform: 'INSTAGRAM', status: 'success' })
-      } catch (error: any) {
-        results.errors.push({ platform: 'INSTAGRAM', error: error.message })
-      }
-    }
-
-    // Sync YouTube data
-    if (data?.youtube) {
-      try {
-        await prisma.analytics.upsert({
-          where: {
-            platform_date: {
-              platform: 'YOUTUBE',
-              date: today
-            }
-          },
-          update: {
-            followers: data.youtube.subscribers || 0,
-            views: data.youtube.stats?.totalViews || 0,
-            reach: data.youtube.stats?.totalViews || 0,
-            engagement: data.youtube.engagement?.likes || 0,
-            watchTime: data.youtube.stats?.watchTimeMinutes || 0
-          },
-          create: {
-            platform: 'YOUTUBE',
-            date: today,
-            followers: data.youtube.subscribers || 0,
-            views: data.youtube.stats?.totalViews || 0,
-            reach: data.youtube.stats?.totalViews || 0,
-            engagement: data.youtube.engagement?.likes || 0,
-            watchTime: data.youtube.stats?.watchTimeMinutes || 0
-          }
-        })
-        results.syncs.push({ platform: 'YOUTUBE', status: 'success' })
-      } catch (error: any) {
-        results.errors.push({ platform: 'YOUTUBE', error: error.message })
-      }
-    }
-
-    results.endTime = new Date().toISOString()
-    results.totalDuration = Date.now() - startTime
-    results.message = `Synced ${results.syncs.length} platforms successfully`
-
-    return NextResponse.json(results)
+    return NextResponse.json({
+      success: true,
+      syncedAt: new Date().toISOString(),
+      platforms: results.length,
+      toolsAvailable: connectionTest.toolsCount,
+      results
+    })
   } catch (error: any) {
     console.error('Cron sync error:', error)
     return NextResponse.json({
-      error: 'Sync failed',
-      message: error.message,
-      startTime: results.startTime,
-      endTime: new Date().toISOString()
+      success: false,
+      error: error.message
     }, { status: 500 })
   }
+}
+
+// POST - Also allow POST for webhook triggers
+export async function POST(request: Request) {
+  return GET(request)
 }
