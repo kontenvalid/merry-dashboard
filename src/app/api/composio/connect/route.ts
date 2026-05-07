@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { saveApiKey, getApiKey } from '@/lib/api-key-store'
 
 export async function GET() {
   const session = await getServerSession(authOptions)
@@ -10,25 +11,19 @@ export async function GET() {
   }
 
   try {
-    // Call Composio MCP endpoint to get connection URL
-    // The consumer API key will be passed by the client in headers
-    // For now, return instructions for manual connection
+    // Return instructions for manual connection
+    const callbackUrl = `${process.env.NEXTAUTH_URL || 'https://merry-dashboard.vercel.app'}/api/composio/callback`
     
     return NextResponse.json({
       success: false,
-      requiresConsumerKey: true,
+      requiresAuth: true,
       message: 'Please provide your x-consumer-api-key to connect',
       instructions: {
         step1: 'Enter your x-consumer-api-key in the input field above',
         step2: 'Click "Connect to Composio" button',
-        step3: 'The system will call Composio with your API key as header',
-        step4: 'You will receive an MCP server URL to use in Claude Desktop/Cursor'
+        step3: 'The system will verify your API key and generate MCP URL'
       },
-      apiEndpoint: 'https://backend.composio.dev/v3/mcp',
-      requiredHeaders: [
-        'x-consumer-api-key: YOUR_CONSUMER_KEY',
-        'Authorization: Bearer YOUR_CONSUMER_KEY'
-      ]
+      mcpEndpoint: 'https://backend.composio.dev/v3/mcp'
     })
   } catch (error) {
     console.error('Composio connect error:', error)
@@ -54,74 +49,98 @@ export async function POST(request: Request) {
       }, { status: 400 })
     }
 
-    // Try to call Composio MCP to get connection info
-    // This simulates what happens when you click "Connect to Composio"
+    const userId = session.user.id || session.user.email
+
+    // Test the API key by making a simple request
     try {
-      // Call Composio's MCP endpoint with the consumer API key
-      const response = await fetch('https://connect.composio.dev/mcp', {
-        method: 'GET',
+      const testRes = await fetch('https://backend.composio.dev/api/v3.1/tools/execute/INSTAGRAM_GET_USER_INFO', {
+        method: 'POST',
         headers: {
           'Authorization': `Bearer ${consumerApiKey}`,
+          'x-api-key': consumerApiKey,
           'x-consumer-api-key': consumerApiKey,
           'Content-Type': 'application/json'
-        }
+        },
+        body: JSON.stringify({ 
+          userId: 'me', 
+          arguments: { ig_user_id: '27556603287273697' } 
+        })
       })
 
-      if (response.ok) {
-        // Success - return connection details
-        const data = await response.json()
-        
+      if (testRes.ok) {
+        // API key works! Save to database
+        await saveApiKey(userId, 'composio', consumerApiKey, { 
+          addedAt: new Date().toISOString(),
+          source: 'user_input',
+          verified: true
+        })
+
+        // Generate MCP URL for future use
+        const mcpUrl = `https://backend.composio.dev/v3/mcp?api_key=${consumerApiKey}`
+
         return NextResponse.json({
           success: true,
           connected: true,
-          message: 'Connected to Composio MCP',
-          mcpUrl: data.url || data.mcpUrl,
+          message: 'Successfully connected to Composio!',
+          mcpUrl: mcpUrl,
           headers: {
-            'x-consumer-api-key': consumerApiKey,
-            'Authorization': `Bearer ${consumerApiKey}`
+            'Authorization': `Bearer ${consumerApiKey}`,
+            'x-api-key': consumerApiKey
           }
         })
       } else {
-        // If Composio returns an error, try alternative flow
-        // Maybe Composio returns a redirect URL instead
+        const errorData = await testRes.json()
         
-        const text = await response.text()
-        console.log('Composio response:', response.status, text)
-        
-        // Return a redirect URL that includes the consumer key as query param
-        // (This is a fallback - adjust based on actual Composio behavior)
-        const callbackUrl = `${process.env.NEXTAUTH_URL || 'https://merry-dashboard.vercel.app'}/api/composio/callback`
-        const composioAuthUrl = new URL('https://connect.composio.dev/mcp')
-        composioAuthUrl.searchParams.set('callback_url', callbackUrl)
-        composioAuthUrl.searchParams.set('api_key', consumerApiKey)
-        
+        // If auth error, might need re-authentication
+        if (testRes.status === 401) {
+          // API key exists but needs re-auth with Composio
+          const callbackUrl = `${process.env.NEXTAUTH_URL}/api/composio/callback`
+          const authUrl = `https://connect.composio.dev/mcp?callback_url=${encodeURIComponent(callbackUrl)}&api_key=${consumerApiKey}`
+          
+          // Still save the key (might be valid)
+          await saveApiKey(userId, 'composio', consumerApiKey, {
+            addedAt: new Date().toISOString(),
+            source: 'user_input',
+            needsAuth: true
+          })
+
+          return NextResponse.json({
+            success: true,
+            connected: false,
+            message: 'API key saved but needs re-authentication with Composio',
+            redirectUrl: authUrl,
+            mcpUrl: mcpUrl,
+            headers: {
+              'x-api-key': consumerApiKey
+            }
+          })
+        }
+
         return NextResponse.json({
-          success: true,
-          connected: true,
-          redirectUrl: composioAuthUrl.toString(),
-          message: 'Redirecting to Composio for authentication',
-          mcpUrl: null,
-          headers: {
-            'x-consumer-api-key': consumerApiKey
-          }
-        })
+          success: false,
+          connected: false,
+          error: errorData.error?.message || 'API key validation failed',
+          message: 'Invalid API key or Composio service error'
+        }, { status: 400 })
       }
     } catch (apiError: any) {
-      console.error('Composio API call failed:', apiError)
+      console.error('Composio API test failed:', apiError)
       
-      // Return a connection URL that the user can use
-      // Include consumer API key in the URL for the MCP connection
-      const callbackUrl = `${process.env.NEXTAUTH_URL || 'https://merry-dashboard.vercel.app'}/api/composio/callback`
-      const composioAuthUrl = `https://connect.composio.dev/mcp?callback_url=${encodeURIComponent(callbackUrl)}`
-      
+      // Even if API fails, save the key - might work later
+      await saveApiKey(userId, 'composio', consumerApiKey, {
+        addedAt: new Date().toISOString(),
+        source: 'user_input',
+        needsAuth: true
+      })
+
       return NextResponse.json({
         success: true,
         connected: false,
-        message: 'Please complete authentication at Composio',
-        redirectUrl: composioAuthUrl,
+        message: 'API key saved. You may need to authenticate with Composio.',
+        redirectUrl: 'https://connect.composio.dev/mcp',
         mcpUrl: `https://backend.composio.dev/v3/mcp?api_key=${consumerApiKey}`,
         headers: {
-          'x-consumer-api-key': consumerApiKey
+          'x-api-key': consumerApiKey
         }
       })
     }
