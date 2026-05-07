@@ -62,7 +62,7 @@ export async function GET() {
     }
 
     // Build dashboard data from database records
-    const data: any = {
+    const data = {
       facebook: { followers: 0, posts: 0, likes: 0, comments: 0, shares: 0, reach: 0, impressions: 0 },
       instagram: { followers: 0, posts: 0, likes: 0, comments: 0, shares: 0, reach: 0, impressions: 0 },
       youtube: { followers: 0, posts: 0, likes: 0, comments: 0, views: 0 },

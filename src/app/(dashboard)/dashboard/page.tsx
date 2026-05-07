@@ -3,7 +3,7 @@
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Loader2, Users, Eye, Heart, TrendingUp, DollarSign, BarChart3 } from "lucide-react";
+import { Loader2, Users, Eye, Heart, TrendingUp, DollarSign, BarChart3, RefreshCw } from "lucide-react";
 
 interface DashboardData {
   facebook: {
@@ -49,113 +49,140 @@ export default function DashboardPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
   const [data, setData] = useState<DashboardData | null>(null);
   const [lastSync, setLastSync] = useState<string | null>(null);
+  const [hasData, setHasData] = useState(false);
+
+  // Check and fetch data from database
+  const fetchData = async () => {
+    try {
+      const [overviewRes, adsRes] = await Promise.all([
+        fetch('/api/composio/overview'),
+        fetch('/api/composio/metaads')
+      ]);
+
+      let dashboardData: DashboardData = {
+        facebook: { followers: 0, posts: 0, likes: 0, comments: 0, shares: 0, reach: 0 },
+        instagram: { followers: 0, posts: 0, likes: 0, comments: 0, reach: 0 },
+        youtube: { followers: 0, posts: 0, likes: 0, comments: 0, views: 0 },
+        metaAds: { totalSpend: 0, totalCampaigns: 0, campaigns: [] },
+        googleDrive: { fileCount: 0 }
+      };
+
+      if (overviewRes.ok) {
+        const overview = await overviewRes.json()
+        const d = overview.data || {}
+        const timestamp = overview.timestamp
+
+        dashboardData.facebook = {
+          followers: d.facebook?.followers || 0,
+          posts: d.facebook?.posts || 0,
+          likes: d.facebook?.engagement?.likes || d.facebook?.likes || 0,
+          comments: d.facebook?.engagement?.comments || d.facebook?.comments || 0,
+          shares: d.facebook?.engagement?.shares || d.facebook?.shares || 0,
+          reach: d.facebook?.reach || d.facebook?.posts_stats?.reach || 0
+        }
+
+        dashboardData.instagram = {
+          followers: d.instagram?.followers || d.instagram?.followers_count || 0,
+          posts: d.instagram?.posts || d.instagram?.mediaCount || 0,
+          likes: d.instagram?.engagement?.likes || d.instagram?.likes || 0,
+          comments: d.instagram?.engagement?.comments || d.instagram?.comments || 0,
+          reach: d.instagram?.reach || d.instagram?.posts_stats?.reach || 0
+        }
+
+        dashboardData.youtube = {
+          followers: d.youtube?.subscribers || d.youtube?.followers || 0,
+          posts: d.youtube?.videoCount || d.youtube?.posts || 0,
+          likes: d.youtube?.engagement?.likes || 0,
+          comments: d.youtube?.engagement?.comments || 0,
+          views: d.youtube?.views || d.youtube?.viewCount || 0
+        }
+
+        dashboardData.googleDrive = {
+          fileCount: d.googleDrive?.fileCount || 0
+        }
+
+        if (timestamp) setLastSync(timestamp)
+      }
+
+      if (adsRes.ok) {
+        const adsData = await adsRes.json()
+        dashboardData.metaAds = {
+          totalSpend: adsData.summary?.totalSpend || 0,
+          totalCampaigns: adsData.summary?.totalCampaigns || 0,
+          campaigns: adsData.campaigns || []
+        }
+      }
+
+      setData(dashboardData)
+      
+      // Check if we have any data
+      const totalFollowers = dashboardData.facebook.followers + dashboardData.instagram.followers + dashboardData.youtube.followers
+      setHasData(totalFollowers > 0 || dashboardData.metaAds.totalSpend > 0 || dashboardData.googleDrive.fileCount > 0)
+    } catch (error) {
+      console.error('Failed to fetch dashboard data:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Trigger sync when no data
+  const triggerSync = async () => {
+    if (syncing) return
+    
+    setSyncing(true)
+    try {
+      const response = await fetch('/api/cron/sync')
+      if (response.ok) {
+        // Refresh data after sync
+        await fetchData()
+        setLastSync(new Date().toISOString())
+      }
+    } catch (error) {
+      console.error('Sync failed:', error)
+    } finally {
+      setSyncing(false)
+    }
+  }
 
   useEffect(() => {
     if (status === "unauthenticated") {
-      router.push("/login");
+      router.push("/login")
     }
-  }, [status, router]);
+  }, [status, router])
 
-  // Auto-fetch data from database
+  // Fetch data on mount, trigger sync if empty
   useEffect(() => {
-    const fetchDashboardData = async () => {
-      setLoading(true);
-      try {
-        // Fetch all data in parallel
-        const [overviewRes, analyticsRes, adsRes] = await Promise.all([
-          fetch('/api/composio/overview'),
-          fetch('/api/analytics?days=7'),
-          fetch('/api/composio/metaads')
-        ]);
-
-        // Parse overview (from database)
-        let dashboardData: DashboardData = {
-          facebook: { followers: 0, posts: 0, likes: 0, comments: 0, shares: 0, reach: 0 },
-          instagram: { followers: 0, posts: 0, likes: 0, comments: 0, reach: 0 },
-          youtube: { followers: 0, posts: 0, likes: 0, comments: 0, views: 0 },
-          metaAds: { totalSpend: 0, totalCampaigns: 0, campaigns: [] },
-          googleDrive: { fileCount: 0 }
-        };
-
-        if (overviewRes.ok) {
-          const overview = await overviewRes.json();
-          const d = overview.data || {};
-
-          dashboardData.facebook = {
-            followers: d.facebook?.followers || 0,
-            posts: d.facebook?.posts || 0,
-            likes: d.facebook?.engagement?.likes || d.facebook?.likes || 0,
-            comments: d.facebook?.engagement?.comments || d.facebook?.comments || 0,
-            shares: d.facebook?.engagement?.shares || d.facebook?.shares || 0,
-            reach: d.facebook?.reach || d.facebook?.posts_stats?.reach || 0
-          };
-
-          dashboardData.instagram = {
-            followers: d.instagram?.followers || d.instagram?.followers_count || 0,
-            posts: d.instagram?.posts || d.instagram?.mediaCount || 0,
-            likes: d.instagram?.engagement?.likes || d.instagram?.likes || 0,
-            comments: d.instagram?.engagement?.comments || d.instagram?.comments || 0,
-            reach: d.instagram?.reach || d.instagram?.posts_stats?.reach || 0
-          };
-
-          dashboardData.youtube = {
-            followers: d.youtube?.subscribers || d.youtube?.followers || 0,
-            posts: d.youtube?.videoCount || d.youtube?.posts || 0,
-            likes: d.youtube?.engagement?.likes || 0,
-            comments: d.youtube?.engagement?.comments || 0,
-            views: d.youtube?.views || d.youtube?.viewCount || 0
-          };
-
-          dashboardData.googleDrive = {
-            fileCount: d.googleDrive?.fileCount || 0
-          };
-
-          if (overview.timestamp) {
-            setLastSync(overview.timestamp);
-          }
-        }
-
-        // Parse Meta Ads
-        if (adsRes.ok) {
-          const adsData = await adsRes.json();
-          dashboardData.metaAds = {
-            totalSpend: adsData.summary?.totalSpend || 0,
-            totalCampaigns: adsData.summary?.totalCampaigns || 0,
-            campaigns: adsData.campaigns || []
-          };
-        }
-
-        setData(dashboardData);
-      } catch (error) {
-        console.error('Failed to fetch dashboard data:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     if (session) {
-      fetchDashboardData();
+      fetchData()
     }
-  }, [session]);
+  }, [session])
+
+  // Auto-sync if no data exists
+  useEffect(() => {
+    if (!loading && !hasData && session && !syncing) {
+      console.log('No data found, triggering sync...')
+      triggerSync()
+    }
+  }, [loading, hasData, session])
 
   if (status === "loading" || loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
-    );
+    )
   }
 
-  // Calculate totals
-  const totalFollowers = (data?.facebook.followers || 0) + (data?.instagram.followers || 0) + (data?.youtube.followers || 0);
+  const totalFollowers = (data?.facebook.followers || 0) + (data?.instagram.followers || 0) + (data?.youtube.followers || 0)
   const totalEngagement = 
     (data?.facebook.likes || 0) + (data?.facebook.comments || 0) + (data?.facebook.shares || 0) +
     (data?.instagram.likes || 0) + (data?.instagram.comments || 0) +
-    (data?.youtube.likes || 0) + (data?.youtube.comments || 0);
-  const totalReach = (data?.facebook.reach || 0) + (data?.instagram.reach || 0);
-  const youtubeViews = data?.youtube.views || 0;
+    (data?.youtube.likes || 0) + (data?.youtube.comments || 0)
+  const totalReach = (data?.facebook.reach || 0) + (data?.instagram.reach || 0)
+  const youtubeViews = data?.youtube.views || 0
 
   return (
     <div className="space-y-6">
@@ -173,12 +200,26 @@ export default function DashboardPage() {
           </p>
         </div>
         <div className="flex gap-2">
+          {syncing && (
+            <span className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Syncing...
+            </span>
+          )}
+          <button
+            onClick={triggerSync}
+            disabled={syncing}
+            className="flex items-center gap-2 px-4 py-2 text-sm bg-secondary hover:bg-secondary/80 rounded-lg transition-colors disabled:opacity-50"
+          >
+            <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
           <button
             onClick={() => router.push('/analytics')}
             className="px-4 py-2 text-sm bg-secondary hover:bg-secondary/80 rounded-lg transition-colors"
           >
             <BarChart3 className="w-4 h-4 inline mr-2" />
-            Full Analytics
+            Analytics
           </button>
         </div>
       </div>
@@ -204,10 +245,6 @@ export default function DashboardPage() {
             <span className="text-sm text-muted-foreground">Total Reach</span>
           </div>
           <p className="text-3xl font-bold">{formatNumber(totalReach)}</p>
-          <div className="flex gap-4 mt-2 text-xs text-muted-foreground">
-            <span>FB: {formatNumber(data?.facebook.reach)}</span>
-            <span>IG: {formatNumber(data?.instagram.reach)}</span>
-          </div>
         </div>
 
         <div className="bg-card rounded-xl p-6 border">
@@ -216,17 +253,6 @@ export default function DashboardPage() {
             <span className="text-sm text-muted-foreground">Total Engagement</span>
           </div>
           <p className="text-3xl font-bold">{formatNumber(totalEngagement)}</p>
-          <div className="flex gap-2 mt-2 text-xs text-muted-foreground">
-            <span className="inline-flex items-center gap-1">
-              <span className="w-2 h-2 bg-blue-500 rounded-full"></span>FB
-            </span>
-            <span className="inline-flex items-center gap-1">
-              <span className="w-2 h-2 bg-pink-500 rounded-full"></span>IG
-            </span>
-            <span className="inline-flex items-center gap-1">
-              <span className="w-2 h-2 bg-red-500 rounded-full"></span>YT
-            </span>
-          </div>
         </div>
 
         <div className="bg-card rounded-xl p-6 border">
@@ -235,9 +261,6 @@ export default function DashboardPage() {
             <span className="text-sm text-muted-foreground">YouTube Views</span>
           </div>
           <p className="text-3xl font-bold">{formatNumber(youtubeViews)}</p>
-          <div className="mt-2 text-xs text-muted-foreground">
-            {data?.youtube.posts || 0} videos
-          </div>
         </div>
       </div>
 
@@ -382,24 +405,24 @@ export default function DashboardPage() {
               <div className="grid grid-cols-3 gap-4 mb-4">
                 <div>
                   <p className="text-2xl font-bold">
-                    {formatNumber(data?.metaAds.totalSpend)}
+                    {formatNumber(data?.metaAds?.totalSpend)}
                   </p>
                   <p className="text-xs text-muted-foreground">Total Spend</p>
                 </div>
                 <div>
                   <p className="text-2xl font-bold">
-                    {data?.metaAds.totalCampaigns}
+                    {data?.metaAds?.totalCampaigns}
                   </p>
                   <p className="text-xs text-muted-foreground">Campaigns</p>
                 </div>
                 <div>
                   <p className="text-2xl font-bold">
-                    {data?.metaAds.campaigns?.length || 0}
+                    {data?.metaAds?.campaigns?.length || 0}
                   </p>
                   <p className="text-xs text-muted-foreground">Active Ads</p>
                 </div>
               </div>
-              {data?.metaAds.campaigns?.slice(0, 3).map((campaign: any, idx: number) => (
+              {data?.metaAds?.campaigns?.slice(0, 3).map((campaign: any, idx: number) => (
                 <div key={idx} className="flex items-center justify-between py-2 border-b border-secondary last:border-0">
                   <div>
                     <p className="font-medium text-sm">{campaign.name}</p>
@@ -431,7 +454,7 @@ export default function DashboardPage() {
           </div>
           {(data?.googleDrive?.fileCount ?? 0) > 0 ? (
             <div className="text-center py-4">
-              <p className="text-4xl font-bold">{data?.googleDrive.fileCount}</p>
+              <p className="text-4xl font-bold">{data?.googleDrive?.fileCount}</p>
               <p className="text-sm text-muted-foreground">files synced</p>
             </div>
           ) : (
@@ -442,15 +465,19 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Empty State */}
-      {totalFollowers === 0 && (
-        <div className="text-center py-12 bg-card rounded-xl border">
-          <p className="text-lg font-medium">No data yet</p>
-          <p className="text-muted-foreground">
-            Social media data will be synced automatically based on your cron schedule.
-            <br />
-            Check your settings to configure sync frequency.
+      {/* Empty State - Trigger Sync */}
+      {!hasData && !syncing && (
+        <div className="text-center py-8 bg-card rounded-xl border">
+          <p className="text-lg font-medium mb-2">Ready to sync your data</p>
+          <p className="text-muted-foreground mb-4">
+            Click the refresh button to fetch data from your connected accounts
           </p>
+          <button
+            onClick={triggerSync}
+            className="px-6 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
+          >
+            Start Sync
+          </button>
         </div>
       )}
     </div>

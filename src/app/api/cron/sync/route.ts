@@ -59,150 +59,163 @@ async function fetchMetaAdsData(accessToken: string) {
   return { campaigns, totalSpend }
 }
 
-// GET - Cron sync endpoint (called by scheduler or manual trigger)
+// Main sync function
+export async function runSync(userId: string = 'kontenval.id@gmail.com') {
+  console.log('🔄 Starting sync for user:', userId)
+  
+  const results: any = {
+    syncedAt: new Date().toISOString(),
+    socialMedia: [],
+    metaAds: null,
+    googleDrive: null,
+    errors: []
+  }
+
+  // Get API keys
+  const apiKey = await getApiKey(userId, 'composio')
+  const metaToken = await getApiKey(userId, 'meta_graph')
+
+  // 1. Fetch social media data via Composio MCP
+  if (apiKey) {
+    const connectionTest = await testMcpConnection(apiKey)
+    if (connectionTest.success) {
+      const socialData = await fetchAllSocialData(apiKey)
+
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+
+      for (const data of socialData) {
+        try {
+          await prisma.analytics.upsert({
+            where: {
+              platform_date: {
+                platform: data.platform,
+                date: today
+              }
+            },
+            update: {
+              followers: data.followers,
+              following: data.following,
+              posts: data.posts,
+              engagement: data.engagement,
+              reach: data.reach,
+              impressions: data.impressions,
+              likes: data.likes,
+              comments: data.comments,
+              shares: data.shares,
+              views: data.views,
+              watchTime: data.watchTime,
+            },
+            create: {
+              platform: data.platform,
+              date: today,
+              followers: data.followers,
+              following: data.following,
+              posts: data.posts,
+              engagement: data.engagement,
+              reach: data.reach,
+              impressions: data.impressions,
+              likes: data.likes,
+              comments: data.comments,
+              shares: data.shares,
+              views: data.views,
+              watchTime: data.watchTime,
+            }
+          })
+          results.socialMedia.push({ platform: data.platform, success: true, data })
+          console.log(`✅ ${data.platform}: ${data.followers} followers`)
+        } catch (dbError: any) {
+          console.error(`❌ ${data.platform} save failed:`, dbError.message)
+          results.errors.push({ platform: data.platform, error: dbError.message })
+        }
+      }
+    } else {
+      console.error('❌ MCP connection failed:', connectionTest.error)
+      results.errors.push({ error: 'MCP connection failed', details: connectionTest.error })
+    }
+  } else {
+    console.warn('⚠️ No Composio API key')
+    results.errors.push({ error: 'No Composio API key configured' })
+  }
+
+  // 2. Fetch Meta Ads data directly via Graph API
+  if (metaToken) {
+    console.log('📊 Fetching Meta Ads...')
+    const metaAdsData = await fetchMetaAdsData(metaToken)
+
+    const metaAdsJson = JSON.stringify({
+      campaigns: metaAdsData.campaigns,
+      totalSpend: metaAdsData.totalSpend,
+      lastUpdated: new Date().toISOString()
+    })
+
+    await prisma.dashboardSettings.upsert({
+      where: { userId },
+      update: { metaAdsData: metaAdsJson },
+      create: { 
+        userId, 
+        metaAdsData: metaAdsJson,
+        timezone: 'gdrive'
+      }
+    })
+
+    results.metaAds = {
+      success: true,
+      campaigns: metaAdsData.campaigns.length,
+      totalSpend: metaAdsData.totalSpend
+    }
+    console.log(`✅ Meta Ads: ${metaAdsData.campaigns.length} campaigns, $${metaAdsData.totalSpend.toFixed(2)} spend`)
+  } else {
+    console.warn('⚠️ No Meta Graph API token')
+    results.errors.push({ error: 'No Meta Graph API token configured' })
+  }
+
+  // 3. Fetch Google Drive files via Composio MCP
+  if (apiKey) {
+    console.log('📁 Fetching Google Drive...')
+    const gdriveResult = await fetchGoogleDriveFiles(apiKey)
+    if (gdriveResult.success) {
+      await prisma.dashboardSettings.upsert({
+        where: { userId },
+        update: { 
+          timezone: 'gdrive',
+          googleDriveData: JSON.stringify({ fileCount: gdriveResult.files.length })
+        },
+        create: { 
+          userId, 
+          timezone: 'gdrive',
+          googleDriveData: JSON.stringify({ fileCount: gdriveResult.files.length })
+        }
+      })
+      results.googleDrive = {
+        success: true,
+        fileCount: gdriveResult.files.length
+      }
+      console.log(`✅ Google Drive: ${gdriveResult.files.length} files`)
+    } else {
+      results.googleDrive = { success: false, error: gdriveResult.error }
+      console.warn('⚠️ Google Drive fetch failed:', gdriveResult.error)
+    }
+  }
+
+  console.log('🏁 Sync completed:', results)
+  return results
+}
+
+// GET - Manual trigger or auto-sync
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
     const userId = searchParams.get('userId') || 'kontenval.id@gmail.com'
 
-    // Get Composio API key
-    const apiKey = await getApiKey(userId, 'composio')
-
-    // Get Meta Graph API token
-    const metaToken = await getApiKey(userId, 'meta_graph')
-
-    const results: any = {
-      syncedAt: new Date().toISOString(),
-      socialMedia: [],
-      metaAds: null,
-      googleDrive: null,
-      errors: []
-    }
-
-    // 1. Fetch social media data via Composio MCP
-    if (apiKey) {
-      // Test connection first
-      const connectionTest = await testMcpConnection(apiKey)
-      if (connectionTest.success) {
-        // Fetch all social media data
-        const socialData = await fetchAllSocialData(apiKey)
-
-        // Store social media data in database
-        const today = new Date()
-        today.setHours(0, 0, 0, 0)
-
-        for (const data of socialData) {
-          try {
-            await prisma.analytics.upsert({
-              where: {
-                platform_date: {
-                  platform: data.platform,
-                  date: today
-                }
-              },
-              update: {
-                followers: data.followers,
-                following: data.following,
-                posts: data.posts,
-                engagement: data.engagement,
-                reach: data.reach,
-                impressions: data.impressions,
-                likes: data.likes,
-                comments: data.comments,
-                shares: data.shares,
-                views: data.views,
-                watchTime: data.watchTime,
-              },
-              create: {
-                platform: data.platform,
-                date: today,
-                followers: data.followers,
-                following: data.following,
-                posts: data.posts,
-                engagement: data.engagement,
-                reach: data.reach,
-                impressions: data.impressions,
-                likes: data.likes,
-                comments: data.comments,
-                shares: data.shares,
-                views: data.views,
-                watchTime: data.watchTime,
-              }
-            })
-            results.socialMedia.push({ platform: data.platform, success: true })
-          } catch (dbError: any) {
-            results.errors.push({ platform: data.platform, error: dbError.message })
-          }
-        }
-      } else {
-        results.errors.push({ error: 'MCP connection failed', details: connectionTest.error })
-      }
-    } else {
-      results.errors.push({ error: 'No Composio API key configured' })
-    }
-
-    // 2. Fetch Meta Ads data directly via Graph API
-    if (metaToken) {
-      const metaAdsData = await fetchMetaAdsData(metaToken)
-
-      // Store Meta Ads summary in a settings field (or separate table if needed)
-      const metaAdsJson = JSON.stringify({
-        campaigns: metaAdsData.campaigns,
-        totalSpend: metaAdsData.totalSpend,
-        lastUpdated: new Date().toISOString()
-      })
-
-      await prisma.dashboardSettings.upsert({
-        where: { userId },
-        update: { metaAdsData: metaAdsJson },
-        create: { 
-          userId, 
-          metaAdsData: metaAdsJson,
-          timezone: '' // Placeholder for GDrive folder ID
-        }
-      })
-
-      results.metaAds = {
-        success: true,
-        campaigns: metaAdsData.campaigns.length,
-        totalSpend: metaAdsData.totalSpend
-      }
-    } else {
-      results.errors.push({ error: 'No Meta Graph API token configured' })
-    }
-
-    // 3. Fetch Google Drive files via Composio MCP
-    if (apiKey) {
-      const gdriveResult = await fetchGoogleDriveFiles(apiKey)
-      if (gdriveResult.success) {
-        // Update GDrive file count in settings
-        await prisma.dashboardSettings.upsert({
-          where: { userId },
-          update: { 
-            timezone: 'gdrive',
-            googleDriveData: JSON.stringify({ fileCount: gdriveResult.files.length })
-          },
-          create: { 
-            userId, 
-            timezone: 'gdrive',
-            googleDriveData: JSON.stringify({ fileCount: gdriveResult.files.length })
-          }
-        })
-        results.googleDrive = {
-          success: true,
-          fileCount: gdriveResult.files.length
-        }
-      } else {
-        results.googleDrive = { success: false, error: gdriveResult.error }
-      }
-    }
+    const results = await runSync(userId)
 
     return NextResponse.json({
       success: results.errors.length === 0,
       ...results
     })
   } catch (error: any) {
-    console.error('Cron sync error:', error)
+    console.error('Sync error:', error)
     return NextResponse.json({
       success: false,
       error: error.message
@@ -210,7 +223,7 @@ export async function GET(request: Request) {
   }
 }
 
-// POST - Also allow POST for webhook triggers
+// POST
 export async function POST(request: Request) {
   return GET(request)
 }
