@@ -2,44 +2,19 @@
 
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Loader2, Users, Eye, Heart, TrendingUp, DollarSign, BarChart3, RefreshCw } from "lucide-react";
 
 interface DashboardData {
-  facebook: {
-    followers: number;
-    posts: number;
-    likes: number;
-    comments: number;
-    shares: number;
-    reach: number;
-  };
-  instagram: {
-    followers: number;
-    posts: number;
-    likes: number;
-    comments: number;
-    reach: number;
-  };
-  youtube: {
-    followers: number;
-    posts: number;
-    likes: number;
-    comments: number;
-    views: number;
-  };
-  metaAds: {
-    totalSpend: number;
-    totalCampaigns: number;
-    campaigns: any[];
-  };
-  googleDrive: {
-    fileCount: number;
-  };
+  facebook: { followers: number; posts: number; likes: number; comments: number; shares: number; reach: number };
+  instagram: { followers: number; posts: number; likes: number; comments: number; reach: number };
+  youtube: { followers: number; posts: number; likes: number; comments: number; views: number };
+  metaAds: { totalSpend: number; totalCampaigns: number; campaigns: any[] };
+  googleDrive: { fileCount: number };
 }
 
 const formatNumber = (num: number | undefined | null) => {
-  if (num === undefined || num === null) return '-';
+  if (num === undefined || num === null) return '0';
   if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
   if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
   return num.toLocaleString();
@@ -52,137 +27,198 @@ export default function DashboardPage() {
   const [syncing, setSyncing] = useState(false);
   const [data, setData] = useState<DashboardData | null>(null);
   const [lastSync, setLastSync] = useState<string | null>(null);
-  const [hasData, setHasData] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<string>('');
+  const hasSynced = useRef(false);
 
-  // Check and fetch data from database
-  const fetchData = async () => {
+  // Main sync function
+  const performSync = async () => {
+    if (syncing || hasSynced.current) return;
+    
+    setSyncing(true);
+    setSyncStatus('Syncing data...');
+    console.log('🔄 Starting sync...');
+    
+    try {
+      // Call sync API
+      const syncResponse = await fetch('/api/cron/sync');
+      const syncResult = await syncResponse.json();
+      
+      console.log('Sync result:', syncResult);
+      setSyncStatus(syncResult.success 
+        ? `Synced: ${syncResult.socialMedia?.length || 0} platforms` 
+        : `Sync failed: ${syncResult.error || 'Unknown error'}`);
+      
+      // Small delay to ensure data is written
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Fetch fresh data from overview
+      const overviewRes = await fetch('/api/composio/overview');
+      if (overviewRes.ok) {
+        const overview = await overviewRes.json();
+        console.log('Overview data:', overview);
+        
+        const d = overview.data || {};
+        setLastSync(overview.timestamp);
+        
+        setData({
+          facebook: {
+            followers: d.facebook?.followers || 0,
+            posts: d.facebook?.posts || 0,
+            likes: d.facebook?.engagement?.likes || d.facebook?.likes || 0,
+            comments: d.facebook?.engagement?.comments || d.facebook?.comments || 0,
+            shares: d.facebook?.engagement?.shares || d.facebook?.shares || 0,
+            reach: d.facebook?.reach || d.facebook?.posts_stats?.reach || 0
+          },
+          instagram: {
+            followers: d.instagram?.followers || d.instagram?.followers_count || 0,
+            posts: d.instagram?.posts || d.instagram?.mediaCount || 0,
+            likes: d.instagram?.engagement?.likes || d.instagram?.likes || 0,
+            comments: d.instagram?.engagement?.comments || d.instagram?.comments || 0,
+            reach: d.instagram?.reach || d.instagram?.posts_stats?.reach || 0
+          },
+          youtube: {
+            followers: d.youtube?.subscribers || d.youtube?.followers || 0,
+            posts: d.youtube?.videoCount || d.youtube?.posts || 0,
+            likes: d.youtube?.engagement?.likes || 0,
+            comments: d.youtube?.engagement?.comments || 0,
+            views: d.youtube?.views || d.youtube?.viewCount || 0
+          },
+          metaAds: {
+            totalSpend: d.metaAds?.summary?.totalSpend || 0,
+            totalCampaigns: d.metaAds?.summary?.totalCampaigns || 0,
+            campaigns: d.metaAds?.campaigns || []
+          },
+          googleDrive: {
+            fileCount: d.googleDrive?.fileCount || 0
+          }
+        });
+      }
+      
+      // Also fetch Meta Ads
+      const adsRes = await fetch('/api/composio/metaads');
+      if (adsRes.ok) {
+        const adsData = await adsRes.json();
+        if (adsData.summary?.totalSpend > 0) {
+          setData(prev => prev ? {
+            ...prev,
+            metaAds: {
+              totalSpend: adsData.summary.totalSpend,
+              totalCampaigns: adsData.summary.totalCampaigns,
+              campaigns: adsData.campaigns || []
+            }
+          } : prev);
+        }
+      }
+      
+      hasSynced.current = true;
+    } catch (error) {
+      console.error('Sync failed:', error);
+      setSyncStatus('Sync error: ' + (error as Error).message);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  // Fetch initial data (from DB)
+  const fetchFromDB = async () => {
     try {
       const [overviewRes, adsRes] = await Promise.all([
         fetch('/api/composio/overview'),
         fetch('/api/composio/metaads')
       ]);
 
-      let dashboardData: DashboardData = {
-        facebook: { followers: 0, posts: 0, likes: 0, comments: 0, shares: 0, reach: 0 },
-        instagram: { followers: 0, posts: 0, likes: 0, comments: 0, reach: 0 },
-        youtube: { followers: 0, posts: 0, likes: 0, comments: 0, views: 0 },
-        metaAds: { totalSpend: 0, totalCampaigns: 0, campaigns: [] },
-        googleDrive: { fileCount: 0 }
-      };
-
       if (overviewRes.ok) {
-        const overview = await overviewRes.json()
-        const d = overview.data || {}
-        const timestamp = overview.timestamp
-
-        dashboardData.facebook = {
-          followers: d.facebook?.followers || 0,
-          posts: d.facebook?.posts || 0,
-          likes: d.facebook?.engagement?.likes || d.facebook?.likes || 0,
-          comments: d.facebook?.engagement?.comments || d.facebook?.comments || 0,
-          shares: d.facebook?.engagement?.shares || d.facebook?.shares || 0,
-          reach: d.facebook?.reach || d.facebook?.posts_stats?.reach || 0
-        }
-
-        dashboardData.instagram = {
-          followers: d.instagram?.followers || d.instagram?.followers_count || 0,
-          posts: d.instagram?.posts || d.instagram?.mediaCount || 0,
-          likes: d.instagram?.engagement?.likes || d.instagram?.likes || 0,
-          comments: d.instagram?.engagement?.comments || d.instagram?.comments || 0,
-          reach: d.instagram?.reach || d.instagram?.posts_stats?.reach || 0
-        }
-
-        dashboardData.youtube = {
-          followers: d.youtube?.subscribers || d.youtube?.followers || 0,
-          posts: d.youtube?.videoCount || d.youtube?.posts || 0,
-          likes: d.youtube?.engagement?.likes || 0,
-          comments: d.youtube?.engagement?.comments || 0,
-          views: d.youtube?.views || d.youtube?.viewCount || 0
-        }
-
-        dashboardData.googleDrive = {
-          fileCount: d.googleDrive?.fileCount || 0
-        }
-
-        if (timestamp) setLastSync(timestamp)
+        const overview = await overviewRes.json();
+        const d = overview.data || {};
+        
+        if (overview.timestamp) setLastSync(overview.timestamp);
+        
+        const fbFollowers = d.facebook?.followers || 0;
+        const igFollowers = d.instagram?.followers || d.instagram?.followers_count || 0;
+        const ytFollowers = d.youtube?.subscribers || d.youtube?.followers || 0;
+        
+        setData({
+          facebook: {
+            followers: fbFollowers,
+            posts: d.facebook?.posts || 0,
+            likes: d.facebook?.engagement?.likes || d.facebook?.likes || 0,
+            comments: d.facebook?.engagement?.comments || d.facebook?.comments || 0,
+            shares: d.facebook?.engagement?.shares || d.facebook?.shares || 0,
+            reach: d.facebook?.reach || d.facebook?.posts_stats?.reach || 0
+          },
+          instagram: {
+            followers: igFollowers,
+            posts: d.instagram?.posts || d.instagram?.mediaCount || 0,
+            likes: d.instagram?.engagement?.likes || d.instagram?.likes || 0,
+            comments: d.instagram?.engagement?.comments || d.instagram?.comments || 0,
+            reach: d.instagram?.reach || d.instagram?.posts_stats?.reach || 0
+          },
+          youtube: {
+            followers: ytFollowers,
+            posts: d.youtube?.videoCount || d.youtube?.posts || 0,
+            likes: d.youtube?.engagement?.likes || 0,
+            comments: d.youtube?.engagement?.comments || 0,
+            views: d.youtube?.views || d.youtube?.viewCount || 0
+          },
+          metaAds: {
+            totalSpend: 0,
+            totalCampaigns: 0,
+            campaigns: []
+          },
+          googleDrive: {
+            fileCount: d.googleDrive?.fileCount || 0
+          }
+        });
       }
 
       if (adsRes.ok) {
-        const adsData = await adsRes.json()
-        dashboardData.metaAds = {
-          totalSpend: adsData.summary?.totalSpend || 0,
-          totalCampaigns: adsData.summary?.totalCampaigns || 0,
-          campaigns: adsData.campaigns || []
+        const adsData = await adsRes.json();
+        if (adsData.summary?.totalSpend > 0) {
+          setData(prev => prev ? {
+            ...prev,
+            metaAds: {
+              totalSpend: adsData.summary.totalSpend,
+              totalCampaigns: adsData.summary.totalCampaigns,
+              campaigns: adsData.campaigns || []
+            }
+          } : prev);
         }
       }
-
-      setData(dashboardData)
-      
-      // Check if we have any data
-      const totalFollowers = dashboardData.facebook.followers + dashboardData.instagram.followers + dashboardData.youtube.followers
-      setHasData(totalFollowers > 0 || dashboardData.metaAds.totalSpend > 0 || dashboardData.googleDrive.fileCount > 0)
     } catch (error) {
-      console.error('Failed to fetch dashboard data:', error)
+      console.error('Failed to fetch:', error);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
-
-  // Trigger sync when no data
-  const triggerSync = async () => {
-    if (syncing) return
-    
-    setSyncing(true)
-    try {
-      const response = await fetch('/api/cron/sync')
-      if (response.ok) {
-        // Refresh data after sync
-        await fetchData()
-        setLastSync(new Date().toISOString())
-      }
-    } catch (error) {
-      console.error('Sync failed:', error)
-    } finally {
-      setSyncing(false)
-    }
-  }
+  };
 
   useEffect(() => {
     if (status === "unauthenticated") {
-      router.push("/login")
+      router.push("/login");
     }
-  }, [status, router])
+  }, [status, router]);
 
-  // Fetch data on mount, trigger sync if empty
+  // On mount: fetch from DB first, then trigger sync
   useEffect(() => {
     if (session) {
-      fetchData()
+      fetchFromDB().then(() => {
+        // Auto-sync after fetching initial data
+        setTimeout(() => performSync(), 500);
+      });
     }
-  }, [session])
-
-  // Auto-sync if no data exists
-  useEffect(() => {
-    if (!loading && !hasData && session && !syncing) {
-      console.log('No data found, triggering sync...')
-      triggerSync()
-    }
-  }, [loading, hasData, session])
+  }, [session]);
 
   if (status === "loading" || loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
-    )
+    );
   }
 
-  const totalFollowers = (data?.facebook.followers || 0) + (data?.instagram.followers || 0) + (data?.youtube.followers || 0)
-  const totalEngagement = 
-    (data?.facebook.likes || 0) + (data?.facebook.comments || 0) + (data?.facebook.shares || 0) +
-    (data?.instagram.likes || 0) + (data?.instagram.comments || 0) +
-    (data?.youtube.likes || 0) + (data?.youtube.comments || 0)
-  const totalReach = (data?.facebook.reach || 0) + (data?.instagram.reach || 0)
-  const youtubeViews = data?.youtube.views || 0
+  const totalFollowers = (data?.facebook.followers || 0) + (data?.instagram.followers || 0) + (data?.youtube.followers || 0);
+  const totalEngagement = (data?.facebook.likes || 0) + (data?.facebook.comments || 0) + (data?.facebook.shares || 0) + (data?.instagram.likes || 0) + (data?.instagram.comments || 0) + (data?.youtube.likes || 0) + (data?.youtube.comments || 0);
+  const totalReach = (data?.facebook.reach || 0) + (data?.instagram.reach || 0);
+  const youtubeViews = data?.youtube.views || 0;
 
   return (
     <div className="space-y-6">
@@ -192,32 +228,16 @@ export default function DashboardPage() {
           <h1 className="text-3xl font-bold">Dashboard</h1>
           <p className="text-muted-foreground">
             Social Media Analytics
-            {lastSync && (
-              <span className="ml-2 text-xs">
-                • Last synced: {new Date(lastSync).toLocaleString('id-ID')}
-              </span>
-            )}
+            {lastSync && <span className="ml-2 text-xs">• Last sync: {new Date(lastSync).toLocaleString('id-ID')}</span>}
           </p>
+          {syncStatus && <p className="text-xs text-blue-500 mt-1">{syncStatus}</p>}
         </div>
         <div className="flex gap-2">
-          {syncing && (
-            <span className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              Syncing...
-            </span>
-          )}
-          <button
-            onClick={triggerSync}
-            disabled={syncing}
-            className="flex items-center gap-2 px-4 py-2 text-sm bg-secondary hover:bg-secondary/80 rounded-lg transition-colors disabled:opacity-50"
-          >
-            <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
-            Refresh
+          <button onClick={performSync} disabled={syncing} className="flex items-center gap-2 px-4 py-2 text-sm bg-secondary hover:bg-secondary/80 rounded-lg transition-colors disabled:opacity-50">
+            {syncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+            {syncing ? 'Syncing...' : 'Sync Now'}
           </button>
-          <button
-            onClick={() => router.push('/analytics')}
-            className="px-4 py-2 text-sm bg-secondary hover:bg-secondary/80 rounded-lg transition-colors"
-          >
+          <button onClick={() => router.push('/analytics')} className="px-4 py-2 text-sm bg-secondary hover:bg-secondary/80 rounded-lg transition-colors">
             <BarChart3 className="w-4 h-4 inline mr-2" />
             Analytics
           </button>
@@ -238,7 +258,6 @@ export default function DashboardPage() {
             <span>YT: {formatNumber(data?.youtube.followers)}</span>
           </div>
         </div>
-
         <div className="bg-card rounded-xl p-6 border">
           <div className="flex items-center gap-3 mb-2">
             <Eye className="w-5 h-5 text-green-500" />
@@ -246,7 +265,6 @@ export default function DashboardPage() {
           </div>
           <p className="text-3xl font-bold">{formatNumber(totalReach)}</p>
         </div>
-
         <div className="bg-card rounded-xl p-6 border">
           <div className="flex items-center gap-3 mb-2">
             <Heart className="w-5 h-5 text-pink-500" />
@@ -254,7 +272,6 @@ export default function DashboardPage() {
           </div>
           <p className="text-3xl font-bold">{formatNumber(totalEngagement)}</p>
         </div>
-
         <div className="bg-card rounded-xl p-6 border">
           <div className="flex items-center gap-3 mb-2">
             <TrendingUp className="w-5 h-5 text-red-500" />
@@ -264,185 +281,43 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Platform Breakdown */}
+      {/* Platform Cards */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Facebook */}
-        <div className="bg-blue-50 dark:bg-blue-950/30 rounded-xl p-5 border border-blue-200 dark:border-blue-800">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold">f</div>
-            <div>
-              <p className="font-semibold">Facebook</p>
-              <p className="text-xs text-muted-foreground">@kontenval.id</p>
-            </div>
-          </div>
-          <div className="grid grid-cols-3 gap-3 text-center">
-            <div>
-              <p className="text-lg font-bold">{formatNumber(data?.facebook.followers)}</p>
-              <p className="text-xs text-muted-foreground">Followers</p>
-            </div>
-            <div>
-              <p className="text-lg font-bold">{formatNumber(data?.facebook.posts)}</p>
-              <p className="text-xs text-muted-foreground">Posts</p>
-            </div>
-            <div>
-              <p className="text-lg font-bold">{formatNumber(data?.facebook.reach)}</p>
-              <p className="text-xs text-muted-foreground">Reach</p>
-            </div>
-          </div>
-          <div className="flex justify-between mt-4 pt-4 border-t border-blue-200 dark:border-blue-800">
-            <div className="text-center">
-              <p className="text-sm font-medium">{formatNumber(data?.facebook.likes)}</p>
-              <p className="text-xs text-muted-foreground">Likes</p>
-            </div>
-            <div className="text-center">
-              <p className="text-sm font-medium">{formatNumber(data?.facebook.comments)}</p>
-              <p className="text-xs text-muted-foreground">Comments</p>
-            </div>
-            <div className="text-center">
-              <p className="text-sm font-medium">{formatNumber(data?.facebook.shares)}</p>
-              <p className="text-xs text-muted-foreground">Shares</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Instagram */}
-        <div className="bg-gradient-to-br from-purple-50 via-pink-50 to-orange-50 dark:from-purple-950/30 dark:via-pink-950/30 dark:to-orange-950/30 rounded-xl p-5 border border-purple-200 dark:border-purple-800">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400 rounded-full flex items-center justify-center text-white font-bold text-xs">IG</div>
-            <div>
-              <p className="font-semibold">Instagram</p>
-              <p className="text-xs text-muted-foreground">@kontenval.id</p>
-            </div>
-          </div>
-          <div className="grid grid-cols-3 gap-3 text-center">
-            <div>
-              <p className="text-lg font-bold">{formatNumber(data?.instagram.followers)}</p>
-              <p className="text-xs text-muted-foreground">Followers</p>
-            </div>
-            <div>
-              <p className="text-lg font-bold">{formatNumber(data?.instagram.posts)}</p>
-              <p className="text-xs text-muted-foreground">Posts</p>
-            </div>
-            <div>
-              <p className="text-lg font-bold">{formatNumber(data?.instagram.reach)}</p>
-              <p className="text-xs text-muted-foreground">Reach</p>
-            </div>
-          </div>
-          <div className="flex justify-between mt-4 pt-4 border-t border-purple-200 dark:border-purple-800">
-            <div className="text-center">
-              <p className="text-sm font-medium">{formatNumber(data?.instagram.likes)}</p>
-              <p className="text-xs text-muted-foreground">Likes</p>
-            </div>
-            <div className="text-center">
-              <p className="text-sm font-medium">{formatNumber(data?.instagram.comments)}</p>
-              <p className="text-xs text-muted-foreground">Comments</p>
-            </div>
-            <div className="text-center">
-              <p className="text-sm font-medium">-</p>
-              <p className="text-xs text-muted-foreground">Shares</p>
-            </div>
-          </div>
-        </div>
-
-        {/* YouTube */}
-        <div className="bg-red-50 dark:bg-red-950/30 rounded-xl p-5 border border-red-200 dark:border-red-800">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 bg-red-500 rounded-full flex items-center justify-center text-white font-bold text-xs">YT</div>
-            <div>
-              <p className="font-semibold">YouTube</p>
-              <p className="text-xs text-muted-foreground">@kontenvalid</p>
-            </div>
-          </div>
-          <div className="grid grid-cols-3 gap-3 text-center">
-            <div>
-              <p className="text-lg font-bold">{formatNumber(data?.youtube.followers)}</p>
-              <p className="text-xs text-muted-foreground">Subscribers</p>
-            </div>
-            <div>
-              <p className="text-lg font-bold">{formatNumber(data?.youtube.posts)}</p>
-              <p className="text-xs text-muted-foreground">Videos</p>
-            </div>
-            <div>
-              <p className="text-lg font-bold">{formatNumber(data?.youtube.views)}</p>
-              <p className="text-xs text-muted-foreground">Views</p>
-            </div>
-          </div>
-          <div className="flex justify-between mt-4 pt-4 border-t border-red-200 dark:border-red-800">
-            <div className="text-center">
-              <p className="text-sm font-medium">{formatNumber(data?.youtube.likes)}</p>
-              <p className="text-xs text-muted-foreground">Likes</p>
-            </div>
-            <div className="text-center">
-              <p className="text-sm font-medium">{formatNumber(data?.youtube.comments)}</p>
-              <p className="text-xs text-muted-foreground">Comments</p>
-            </div>
-            <div className="text-center">
-              <p className="text-sm font-medium">-</p>
-              <p className="text-xs text-muted-foreground">Shares</p>
-            </div>
-          </div>
-        </div>
+        <PlatformCard title="Facebook" handle="@kontenval.id" platform="facebook" data={data?.facebook} />
+        <PlatformCard title="Instagram" handle="@kontenval.id" platform="instagram" data={data?.instagram} />
+        <PlatformCard title="YouTube" handle="@kontenvalid" platform="youtube" data={data?.youtube} />
       </div>
 
       {/* Meta Ads & Google Drive */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Meta Ads */}
         <div className="bg-card rounded-xl p-6 border">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
               <DollarSign className="w-5 h-5 text-blue-500" />
               <h3 className="font-semibold">Meta Ads</h3>
             </div>
-            <button
-              onClick={() => router.push('/ads')}
-              className="text-sm text-blue-500 hover:underline"
-            >
-              View Details →
-            </button>
+            {(data?.metaAds?.totalCampaigns ?? 0) > 0 && (
+              <span className="text-xs bg-blue-100 dark:bg-blue-900 px-2 py-1 rounded">Active</span>
+            )}
           </div>
           {(data?.metaAds?.totalCampaigns ?? 0) > 0 ? (
-            <>
-              <div className="grid grid-cols-3 gap-4 mb-4">
+            <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-2xl font-bold">
-                    {formatNumber(data?.metaAds?.totalSpend)}
-                  </p>
+                  <p className="text-2xl font-bold">${formatNumber(data?.metaAds?.totalSpend)}</p>
                   <p className="text-xs text-muted-foreground">Total Spend</p>
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">
-                    {data?.metaAds?.totalCampaigns}
-                  </p>
+                  <p className="text-2xl font-bold">{data?.metaAds?.totalCampaigns}</p>
                   <p className="text-xs text-muted-foreground">Campaigns</p>
                 </div>
-                <div>
-                  <p className="text-2xl font-bold">
-                    {data?.metaAds?.campaigns?.length || 0}
-                  </p>
-                  <p className="text-xs text-muted-foreground">Active Ads</p>
-                </div>
               </div>
-              {data?.metaAds?.campaigns?.slice(0, 3).map((campaign: any, idx: number) => (
-                <div key={idx} className="flex items-center justify-between py-2 border-b border-secondary last:border-0">
-                  <div>
-                    <p className="font-medium text-sm">{campaign.name}</p>
-                    <p className="text-xs text-muted-foreground">{campaign.accountName}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-medium">${formatNumber(campaign.spend)}</p>
-                    <p className="text-xs text-muted-foreground">{campaign.status}</p>
-                  </div>
-                </div>
-              ))}
-            </>
+            </div>
           ) : (
-            <p className="text-center text-muted-foreground py-4">
-              No Meta Ads data available
-            </p>
+            <p className="text-center text-muted-foreground py-4">No Meta Ads data</p>
           )}
         </div>
 
-        {/* Google Drive */}
         <div className="bg-card rounded-xl p-6 border">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
@@ -458,28 +333,51 @@ export default function DashboardPage() {
               <p className="text-sm text-muted-foreground">files synced</p>
             </div>
           ) : (
-            <p className="text-center text-muted-foreground py-4">
-              No files synced
-            </p>
+            <p className="text-center text-muted-foreground py-4">No files synced</p>
           )}
         </div>
       </div>
+    </div>
+  );
+}
 
-      {/* Empty State - Trigger Sync */}
-      {!hasData && !syncing && (
-        <div className="text-center py-8 bg-card rounded-xl border">
-          <p className="text-lg font-medium mb-2">Ready to sync your data</p>
-          <p className="text-muted-foreground mb-4">
-            Click the refresh button to fetch data from your connected accounts
-          </p>
-          <button
-            onClick={triggerSync}
-            className="px-6 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
-          >
-            Start Sync
-          </button>
+// Platform card component
+function PlatformCard({ title, handle, platform, data }: { title: string; handle: string; platform: string; data?: any }) {
+  const colors = {
+    facebook: 'bg-blue-500',
+    instagram: 'bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400',
+    youtube: 'bg-red-500'
+  };
+  
+  const icon = platform === 'facebook' ? 'f' : platform === 'instagram' ? 'IG' : 'YT';
+
+  return (
+    <div className={`rounded-xl p-5 border ${
+      platform === 'facebook' ? 'bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800' :
+      platform === 'instagram' ? 'bg-gradient-to-br from-purple-50 via-pink-50 to-orange-50 dark:from-purple-950/30 dark:via-pink-950/30 dark:to-orange-950/30 border-purple-200 dark:border-purple-800' :
+      'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800'
+    }`}>
+      <div className="flex items-center gap-3 mb-4">
+        <div className={`w-10 h-10 ${colors[platform as keyof typeof colors]} rounded-full flex items-center justify-center text-white font-bold ${platform === 'instagram' ? 'text-xs' : ''}`}>{icon}</div>
+        <div>
+          <p className="font-semibold">{title}</p>
+          <p className="text-xs text-muted-foreground">{handle}</p>
         </div>
-      )}
+      </div>
+      <div className="grid grid-cols-3 gap-3 text-center">
+        <div>
+          <p className="text-lg font-bold">{formatNumber(data?.followers || platform === 'youtube' ? data?.followers : 0)}</p>
+          <p className="text-xs text-muted-foreground">{platform === 'youtube' ? 'Subscribers' : 'Followers'}</p>
+        </div>
+        <div>
+          <p className="text-lg font-bold">{formatNumber(data?.posts)}</p>
+          <p className="text-xs text-muted-foreground">{platform === 'youtube' ? 'Videos' : 'Posts'}</p>
+        </div>
+        <div>
+          <p className="text-lg font-bold">{formatNumber(platform === 'youtube' ? data?.views : data?.reach)}</p>
+          <p className="text-xs text-muted-foreground">{platform === 'youtube' ? 'Views' : 'Reach'}</p>
+        </div>
+      </div>
     </div>
   );
 }
