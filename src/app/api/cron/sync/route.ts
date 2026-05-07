@@ -127,9 +127,9 @@ async function syncSocialMedia() {
       })
       
       await prisma.dashboardSettings.upsert({
-        where: { userId: 'default' },
+        where: { id: 'default' },
         update: { googleDriveData: JSON.stringify({ fileCount: data.files.length, ebookCount: ebookFiles.length, files: data.files.slice(0, 10) }) },
-        create: { userId: 'default', googleDriveData: JSON.stringify({ fileCount: data.files.length, ebookCount: ebookFiles.length, files: data.files.slice(0, 10) }) }
+        create: { id: 'default', userId: 'default', googleDriveData: JSON.stringify({ fileCount: data.files.length, ebookCount: ebookFiles.length, files: data.files.slice(0, 10) }) }
       })
       results.platforms.push({ platform: 'GOOGLEDRIVE', success: true, totalFiles: data.files.length, ebookFiles: ebookFiles.length })
     }
@@ -167,9 +167,9 @@ async function syncMetaAds() {
     // Save to dashboardSettings
     if (results.campaigns.length > 0) {
       await prisma.dashboardSettings.upsert({
-        where: { userId: 'default' },
+        where: { id: 'default' },
         update: { metaAdsData: JSON.stringify(results) },
-        create: { userId: 'default', metaAdsData: JSON.stringify(results) }
+        create: { id: 'default', userId: 'default', metaAdsData: JSON.stringify(results) }
       })
     }
   } catch (e: any) {
