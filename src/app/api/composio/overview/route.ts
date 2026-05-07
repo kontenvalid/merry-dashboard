@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { fetchDashboardData } from '@/lib/dashboard-data'
+import { fetchDashboardData, fetchMetaAdsData } from '@/lib/dashboard-data'
 
 export async function GET() {
   const session = await getServerSession(authOptions)
@@ -13,7 +13,9 @@ export async function GET() {
   const userId = session.user.id || session.user.email
 
   try {
+    // Fetch all data
     const data = await fetchDashboardData(userId)
+    const metaAds = await fetchMetaAdsData(userId)
     
     return NextResponse.json({
       success: true,
@@ -23,7 +25,7 @@ export async function GET() {
         facebook: data.facebook,
         instagram: data.instagram,
         youtube: data.youtube,
-        metaAds: data.metaAds,
+        metaAds: metaAds,
         googleDrive: data.googleDrive
       }
     })
