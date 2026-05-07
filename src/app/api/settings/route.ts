@@ -16,13 +16,13 @@ export async function GET() {
 
   // Get dashboard settings from database
   let settings = await prisma.dashboardSettings.findUnique({
-    where: { userId }
+    where: { id: userId }
   })
 
   // Create default settings if not exists
   if (!settings) {
     settings = await prisma.dashboardSettings.create({
-      data: { userId }
+      data: { userId, id: userId }
     })
   }
 
@@ -67,13 +67,14 @@ export async function PUT(request: Request) {
 
     // Update dashboard settings
     await prisma.dashboardSettings.upsert({
-      where: { userId },
+      where: { id: userId },
       update: {
         theme: theme || 'system',
         language: language || 'en',
         timezone: timezone || 'Asia/Bangkok'
       },
       create: {
+        id: userId,
         userId,
         theme: theme || 'system',
         language: language || 'en',

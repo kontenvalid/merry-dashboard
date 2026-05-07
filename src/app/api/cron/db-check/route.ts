@@ -17,7 +17,7 @@ export async function GET() {
 
     // Check settings table
     const settings = await prisma.dashboardSettings.findUnique({
-      where: { userId }
+      where: { id: userId }
     })
 
     // Check api keys table

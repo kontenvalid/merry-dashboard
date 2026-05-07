@@ -21,8 +21,8 @@ export async function GET() {
     const apiKey = await getApiKey(userId, 'composio')
     
     // Get user's GDrive folder settings
-    let settings = await prisma.dashboardSettings.findUnique({
-      where: { userId }
+    const settings = await prisma.dashboardSettings.findUnique({
+      where: { id: session.user.id }
     })
     
     const folderId = settings?.timezone || DEFAULT_GDRIVE_FOLDER_ID // abuse timezone field for folder ID

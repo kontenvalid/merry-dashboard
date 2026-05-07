@@ -24,7 +24,7 @@ export async function GET() {
 
     // Fetch settings for Meta Ads and Google Drive data
     const settings = await prisma.dashboardSettings.findUnique({
-      where: { userId }
+      where: { id: userId }
     })
 
     // Parse Meta Ads data
