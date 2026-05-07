@@ -82,7 +82,7 @@ export async function GET() {
     fetchFacebookData(), fetchInstagramData(), fetchYoutubeData(), fetchGoogleDriveData()
   ])
 
-  const save = async (platform: string, data: any) => {
+  const save = async (platform: 'FACEBOOK' | 'INSTAGRAM' | 'YOUTUBE', data: any) => {
     if (!data) return
     const update: any = { followers: data.followers || 0, posts: data.posts || 0, likes: data.likes || 0, comments: data.comments || 0, engagement: data.engagement || 0 }
     if (data.shares) update.shares = data.shares
