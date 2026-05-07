@@ -505,21 +505,24 @@ export async function fetchAllSocialData(apiKey: string): Promise<SocialMediaDat
     console.log('✅ Facebook success:', fb.value)
     results.push(fb.value)
   } else {
-    console.log('❌ Facebook failed:', fb.status, fb.reason?.message)
+    const fbError = fb.status === 'rejected' ? fb.reason : new Error('Failed to fetch Facebook data')
+    console.log('❌ Facebook failed:', fb.status, fbError?.message)
   }
   
   if (ig.status === 'fulfilled' && ig.value) {
     console.log('✅ Instagram success:', ig.value)
     results.push(ig.value)
   } else {
-    console.log('❌ Instagram failed:', ig.status, ig.reason?.message)
+    const igError = ig.status === 'rejected' ? ig.reason : new Error('Failed to fetch Instagram data')
+    console.log('❌ Instagram failed:', ig.status, igError?.message)
   }
   
   if (yt.status === 'fulfilled' && yt.value) {
     console.log('✅ YouTube success:', yt.value)
     results.push(yt.value)
   } else {
-    console.log('❌ YouTube failed:', yt.status, yt.reason?.message)
+    const ytError = yt.status === 'rejected' ? yt.reason : new Error('Failed to fetch YouTube data')
+    console.log('❌ YouTube failed:', yt.status, ytError?.message)
   }
 
   console.log(`\n=== Total: ${results.length} platforms fetched ===\n`)

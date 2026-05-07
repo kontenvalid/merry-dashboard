@@ -1,8 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
-import { fetchDashboardData } from '@/lib/dashboard-data'
-import { getApiKey } from '@/lib/api-key-store'
+import prisma from '@/lib/prisma'
 
 // Meta Ads accounts
 const META_ADS_ACCOUNTS = [
@@ -11,93 +8,118 @@ const META_ADS_ACCOUNTS = [
   { id: 'act_1985101938922115', currency: 'IDR', name: 'Barqun Account' }
 ]
 
-// Fetch Meta Ads data
-async function fetchMetaAdsData(accessToken: string) {
-  const campaigns: any[] = []
-  let totalSpend = 0
-
-  for (const account of META_ADS_ACCOUNTS) {
-    try {
-      const campaignsRes = await fetch(
-        `https://graph.facebook.com/v21.0/${account.id}/campaigns?fields=id,name,status,daily_budget,spend&access_token=${accessToken}`
-      )
-      
-      if (campaignsRes.ok) {
-        const data = await campaignsRes.json()
-        
-        for (const campaign of data.data || []) {
-          const insightsRes = await fetch(
-            `https://graph.facebook.com/v21.0/${campaign.id}/insights?fields=spend,impressions,clicks&access_token=${accessToken}`
-          )
-          
-          const insights: any = {}
-          if (insightsRes.ok) {
-            const insightsData = await insightsRes.json()
-            Object.assign(insights, insightsData.data?.[0] || {})
-          }
-
-          const spend = parseFloat(insights.spend || campaign.spend || '0')
-          campaigns.push({
-            accountId: account.id,
-            accountName: account.name,
-            currency: account.currency,
-            name: campaign.name,
-            status: campaign.status,
-            spend: spend || undefined,
-            impressions: parseInt(insights.impressions || '0') || undefined,
-            clicks: parseInt(insights.clicks || '0') || undefined,
-          })
-
-          totalSpend += spend
-        }
-      }
-    } catch (e) {
-      console.warn(`Failed to fetch campaigns for ${account.id}`)
-    }
-  }
-
-  return {
-    connected: campaigns.length > 0 || !!accessToken,
-    accounts: META_ADS_ACCOUNTS,
-    campaigns,
-    summary: {
-      totalSpend,
-      totalCampaigns: campaigns.length,
-      avgCPC: campaigns.reduce((acc, c) => acc + (c.clicks || 0), 0) > 0 
-        ? totalSpend / campaigns.reduce((acc, c) => acc + (c.clicks || 0), 0) 
-        : 0
-    }
-  }
-}
-
+// GET - Read dashboard data from database
 export async function GET() {
-  const session = await getServerSession(authOptions)
-  
-  if (!session?.user?.email) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  const userId = session.user.id || session.user.email
-
   try {
-    // Fetch dashboard data from database
-    const data = await fetchDashboardData(userId)
-    
-    // Get Meta Ads data separately
-    const metaToken = await getApiKey(userId, 'meta_graph')
-    const metaAds = metaToken ? await fetchMetaAdsData(metaToken) : data.metaAds
-    
+    const userId = 'kontenval.id@gmail.com'
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+
+    // Fetch latest analytics from database
+    const analyticsRecords = await prisma.analytics.findMany({
+      where: {
+        date: today
+      }
+    })
+
+    // Fetch settings for Meta Ads and Google Drive data
+    const settings = await prisma.dashboardSettings.findUnique({
+      where: { userId }
+    })
+
+    // Parse Meta Ads data
+    let metaAds = { connected: false, accounts: META_ADS_ACCOUNTS, campaigns: [], summary: { totalSpend: 0, totalCampaigns: 0, avgCPC: 0 } }
+    if (settings?.metaAdsData) {
+      try {
+        const parsedMeta = JSON.parse(settings.metaAdsData)
+        metaAds = {
+          connected: true,
+          accounts: META_ADS_ACCOUNTS,
+          campaigns: parsedMeta.campaigns || [],
+          summary: {
+            totalSpend: parsedMeta.totalSpend || 0,
+            totalCampaigns: (parsedMeta.campaigns || []).length,
+            avgCPC: 0
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to parse metaAdsData:', e)
+      }
+    }
+
+    // Parse Google Drive data
+    let googleDrive = { connected: false, fileCount: 0 }
+    if (settings?.googleDriveData) {
+      try {
+        const parsedGD = JSON.parse(settings.googleDriveData)
+        googleDrive = {
+          connected: true,
+          fileCount: parsedGD.fileCount || 0
+        }
+      } catch (e) {
+        console.warn('Failed to parse googleDriveData:', e)
+      }
+    }
+
+    // Build dashboard data from database records
+    const data: any = {
+      facebook: { followers: 0, posts: 0, likes: 0, comments: 0, shares: 0, reach: 0, impressions: 0 },
+      instagram: { followers: 0, posts: 0, likes: 0, comments: 0, shares: 0, reach: 0, impressions: 0 },
+      youtube: { followers: 0, posts: 0, likes: 0, comments: 0, views: 0 },
+      metaAds,
+      googleDrive
+    }
+
+    for (const record of analyticsRecords) {
+      switch (record.platform) {
+        case 'FACEBOOK':
+          data.facebook = {
+            followers: record.followers,
+            posts: record.posts,
+            likes: record.likes,
+            comments: record.comments,
+            shares: record.shares,
+            reach: record.reach,
+            impressions: record.impressions,
+            engagement: { likes: record.likes, comments: record.comments, shares: record.shares },
+            posts_stats: { reach: record.reach, impressions: record.impressions }
+          }
+          break
+        case 'INSTAGRAM':
+          data.instagram = {
+            followers: record.followers,
+            posts: record.posts,
+            likes: record.likes,
+            comments: record.comments,
+            reach: record.reach,
+            impressions: record.impressions,
+            engagement: { likes: record.likes, comments: record.comments },
+            posts_stats: { reach: record.reach, impressions: record.impressions }
+          }
+          break
+        case 'YOUTUBE':
+          data.youtube = {
+            followers: record.followers,
+            posts: record.posts,
+            likes: record.likes,
+            comments: record.comments,
+            views: record.views,
+            engagement: { likes: record.likes, comments: record.comments }
+          }
+          break
+      }
+    }
+
+    // Get timestamp of last update
+    const latestRecord = await prisma.analytics.findFirst({
+      orderBy: { updatedAt: 'desc' }
+    })
+
     return NextResponse.json({
       success: true,
-      source: data.source,
-      timestamp: data.timestamp,
-      data: {
-        facebook: data.facebook,
-        instagram: data.instagram,
-        youtube: data.youtube,
-        metaAds: metaAds,
-        googleDrive: data.googleDrive
-      }
+      source: 'database',
+      timestamp: settings?.updatedAt?.toISOString() || latestRecord?.updatedAt?.toISOString() || new Date().toISOString(),
+      data
     })
   } catch (error: any) {
     console.error('Overview API error:', error)

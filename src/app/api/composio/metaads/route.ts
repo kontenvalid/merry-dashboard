@@ -1,123 +1,103 @@
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { getApiKey } from '@/lib/api-key-store'
 
+// Meta Ads accounts
 const META_ADS_ACCOUNTS = [
   { id: 'act_66362051', currency: 'USD', name: 'USD Account' },
   { id: 'act_2180078045608935', currency: 'IDR', name: 'IDR Account 1' },
   { id: 'act_1985101938922115', currency: 'IDR', name: 'Barqun Account' }
 ]
 
+// Meta Graph API base URL
+const META_API_BASE = 'https://graph.facebook.com/v21.0'
+
 export async function GET() {
-  const session = await getServerSession(authOptions)
-  
-  if (!session?.user?.email) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  const userId = session.user.id || session.user.email
-
   try {
-    const accessToken = await getApiKey(userId, 'meta_graph')
+    // Get Meta Graph API token from database
+    const accessToken = await getApiKey('kontenval.id@gmail.com', 'meta_graph')
 
     if (!accessToken) {
       return NextResponse.json({
-        success: true,
-        connected: false,
-        source: 'not_configured',
-        accounts: META_ADS_ACCOUNTS,
-        campaigns: [],
-        summary: null
-      })
+        success: false,
+        error: 'No Meta Graph API token found',
+        message: 'Please configure Meta Graph API token in Settings'
+      }, { status: 400 })
     }
 
-    const result = await fetchMetaAdsData(accessToken)
+    const campaigns: any[] = []
+    let totalSpend = 0
 
-    return NextResponse.json({
-      success: true,
-      connected: result.campaigns.length > 0,
-      source: 'meta_graph_api',
-      accounts: META_ADS_ACCOUNTS,
-      campaigns: result.campaigns,
-      summary: result.campaigns.length > 0 ? result.summary : null
-    })
-  } catch (error: any) {
-    console.error('Meta Ads API error:', error)
-    return NextResponse.json({
-      success: false,
-      connected: false,
-      error: error.message,
-      accounts: META_ADS_ACCOUNTS,
-      campaigns: [],
-      summary: null
-    }, { status: 500 })
-  }
-}
+    // Fetch campaigns for each account
+    for (const account of META_ADS_ACCOUNTS) {
+      try {
+        // Get campaigns
+        const campaignsRes = await fetch(
+          `${META_API_BASE}/${account.id}/campaigns?fields=id,name,status,daily_budget,spend&access_token=${accessToken}`
+        )
 
-async function fetchMetaAdsData(accessToken: string) {
-  const campaigns: any[] = []
-  let totalSpend = 0
-  let totalImpressions = 0
-  let totalClicks = 0
+        if (!campaignsRes.ok) {
+          console.warn(`Failed to fetch campaigns for ${account.id}: ${campaignsRes.status}`)
+          continue
+        }
 
-  for (const account of META_ADS_ACCOUNTS) {
-    try {
-      const campaignsRes = await fetch(
-        `https://graph.facebook.com/v21.0/${account.id}/campaigns?fields=id,name,status,objective,daily_budget,spend&access_token=${accessToken}`
-      )
-      
-      if (campaignsRes.ok) {
-        const data = await campaignsRes.json()
-        
-        for (const campaign of data.data || []) {
+        const campaignsData = await campaignsRes.json()
+
+        for (const campaign of campaignsData.data || []) {
+          // Get insights for each campaign
           const insightsRes = await fetch(
-            `https://graph.facebook.com/v21.0/${campaign.id}/insights?fields=spend,impressions,clicks,cpc,ctr&access_token=${accessToken}`
+            `${META_API_BASE}/${campaign.id}/insights?fields=spend,impressions,clicks&access_token=${accessToken}`
           )
-          
-          const insights: any = {}
+
+          let insights: any = {}
           if (insightsRes.ok) {
             const insightsData = await insightsRes.json()
-            Object.assign(insights, insightsData.data?.[0] || {})
+            insights = insightsData.data?.[0] || {}
           }
 
           const spend = parseFloat(insights.spend || campaign.spend || '0')
-          const impressions = parseInt(insights.impressions || '0')
-          const clicks = parseInt(insights.clicks || '0')
 
           campaigns.push({
             accountId: account.id,
             accountName: account.name,
             currency: account.currency,
-            id: campaign.id,
             name: campaign.name,
             status: campaign.status,
-            objective: campaign.objective,
-            spend,
-            impressions,
-            clicks,
-            cpc: insights.cpc || 0,
-            ctr: insights.ctr || 0
+            spend: spend || undefined,
+            impressions: parseInt(insights.impressions || '0') || undefined,
+            clicks: parseInt(insights.clicks || '0') || undefined,
+            budget: campaign.daily_budget ? parseFloat(campaign.daily_budget) / 100 : undefined
           })
 
           totalSpend += spend
-          totalImpressions += impressions
-          totalClicks += clicks
         }
+      } catch (e) {
+        console.warn(`Error fetching data for ${account.id}:`, e)
       }
-    } catch (e) {
-      console.warn(`Failed to fetch campaigns for ${account.id}:`, e)
     }
-  }
 
-  return {
-    campaigns,
-    summary: {
-      totalSpend,
-      totalImpressions,
-      totalClicks,
-      totalCampaigns: campaigns.length,
-      avgCPC: totalClicks > 0 ? totalSpend / totalClicks : 0
-    }
+    // Calculate summary
+    const totalClicks = campaigns.reduce((acc, c) => acc + (c.clicks || 0), 0)
+    const avgCPC = totalClicks > 0 ? totalSpend / totalClicks : 0
+
+    return NextResponse.json({
+      success: true,
+      source: 'meta_graph_api',
+      timestamp: new Date().toISOString(),
+      accounts: META_ADS_ACCOUNTS,
+      campaigns,
+      summary: {
+        totalSpend,
+        totalCampaigns: campaigns.length,
+        totalClicks,
+        avgCPC
+      }
+    })
+  } catch (error: any) {
+    console.error('Meta Ads API error:', error)
+    return NextResponse.json({
+      success: false,
+      source: 'error',
+      error: error.message
+    }, { status: 500 })
   }
 }

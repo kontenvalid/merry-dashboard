@@ -154,13 +154,15 @@ model AdPerformance {
 
 // Dashboard settings/preferences
 model DashboardSettings {
-  id        String   @id @default(cuid())
-  userId    String   @unique
-  theme     String   @default("system") // light, dark, system
-  language  String   @default("en")
-  timezone  String   @default("Asia/Bangkok")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  theme        String   @default("system") // light, dark, system
+  language     String   @default("en")
+  timezone     String   @default("Asia/Bangkok")
+  metaAdsData  String?  @db.Text // JSON string of Meta Ads summary
+  googleDriveData String? @db.Text // JSON string of Google Drive files
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   @@map("dashboard_settings")
 }
