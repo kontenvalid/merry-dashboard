@@ -113,10 +113,10 @@ export default function AdsPage() {
       }))
     : [];
 
-  // Only show ads section if connected and has data
-  const showAdsSection = metaAdsData?.success && campaigns.length > 0;
-  const showAccounts = metaAdsData?.success;
-  const showEmptyState = !metaAdsData?.success && !loadingData;
+  // Show ads section if API was successful (even if 0 campaigns)
+  const showAdsSection = metaAdsData?.success === true;
+  const showAccounts = metaAdsData?.success === true;
+  const showEmptyState = metaAdsData === null && !loadingData;
 
   return (
     <div className="space-y-6">
@@ -301,8 +301,7 @@ export default function AdsPage() {
         </Card>
       )}
 
-      {/* Empty State */}
-      {!showAdsSection && metaAdsData?.connected && (
+      {showAccounts && campaigns.length === 0 && (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <p className="text-lg font-medium text-muted-foreground">No campaigns found</p>
