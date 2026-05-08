@@ -368,17 +368,18 @@ export async function GET() {
     console.log('🔑 API keys loaded, starting sync...')
 
     // Fetch all platforms
+    // Use UTC date for consistency
     const today = new Date()
-    today.setHours(0, 0, 0, 0)
+    const utcDate = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0, 0))
 
     // 1. Facebook
     try {
       const fbData = await fetchFacebook(composioKey)
       if (fbData) {
         await prisma.analytics.upsert({
-          where: { platform_date: { platform: 'FACEBOOK' as const, date: today } },
+          where: { platform_date: { platform: 'FACEBOOK' as const, date: utcDate } },
           update: { ...fbData, platform: 'FACEBOOK' as const },
-          create: { platform: 'FACEBOOK' as const, date: today, ...fbData }
+          create: { platform: 'FACEBOOK' as const, date: utcDate, ...fbData }
         })
         result.platforms.push({ platform: 'Facebook', success: true, data: fbData })
         console.log('✅ Facebook synced:', fbData)
@@ -393,9 +394,9 @@ export async function GET() {
       const igData = await fetchInstagram(composioKey)
       if (igData) {
         await prisma.analytics.upsert({
-          where: { platform_date: { platform: 'INSTAGRAM' as const, date: today } },
+          where: { platform_date: { platform: 'INSTAGRAM' as const, date: utcDate } },
           update: { ...igData, platform: 'INSTAGRAM' as const },
-          create: { platform: 'INSTAGRAM' as const, date: today, ...igData }
+          create: { platform: 'INSTAGRAM' as const, date: utcDate, ...igData }
         })
         result.platforms.push({ platform: 'Instagram', success: true, data: igData })
         console.log('✅ Instagram synced:', igData)
@@ -410,9 +411,9 @@ export async function GET() {
       const ytData = await fetchYouTube(composioKey)
       if (ytData) {
         await prisma.analytics.upsert({
-          where: { platform_date: { platform: 'YOUTUBE' as const, date: today } },
+          where: { platform_date: { platform: 'YOUTUBE' as const, date: utcDate } },
           update: { ...ytData, platform: 'YOUTUBE' as const },
-          create: { platform: 'YOUTUBE' as const, date: today, ...ytData }
+          create: { platform: 'YOUTUBE' as const, date: utcDate, ...ytData }
         })
         result.platforms.push({ platform: 'YouTube', success: true, data: ytData })
         console.log('✅ YouTube synced:', ytData)

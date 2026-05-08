@@ -12,8 +12,10 @@ const META_ADS_ACCOUNTS = [
 export async function GET() {
   try {
     const userId = 'kontenval.id@gmail.com'
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
+    // Use UTC date for consistency
+    const now = new Date()
+    const today = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0))
+    console.log('Querying analytics for:', today.toISOString())
 
     // Fetch latest analytics from database
     const analyticsRecords = await prisma.analytics.findMany({
