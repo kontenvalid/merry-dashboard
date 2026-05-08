@@ -46,7 +46,7 @@ export default function DashboardPage() {
 
       if (adsRes.ok) {
         const adsData = await adsRes.json();
-        setData(prev => prev ? {
+        setData((prev: any) => prev ? {
           ...prev,
           metaAds: {
             connected: true,
