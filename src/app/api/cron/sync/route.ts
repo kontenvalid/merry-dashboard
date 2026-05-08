@@ -98,7 +98,7 @@ const IG_USER_ID = '27556603287273697'
 const YT_CHANNEL_ID = 'UCK2C25kK4E3PR6w0gPNCjaA'
 
 // Fetch Facebook data
-async function fetchFacebook(apiKey: string) {
+async function fetchFacebook(apiKey: string): Promise<Omit<Parameters<typeof prisma.analytics.create>[0]['data'], 'platform' | 'date'> | null> {
   console.log('📘 Fetching Facebook...')
   const data = await executeTool(apiKey, 'FACEBOOK_GET_PAGE_POSTS', { 
     page_id: FB_PAGE_ID, 
@@ -120,7 +120,6 @@ async function fetchFacebook(apiKey: string) {
   }
 
   return {
-    platform: 'FACEBOOK',
     followers: 6, // Fixed value if not available
     posts: posts.length,
     likes,
@@ -133,7 +132,7 @@ async function fetchFacebook(apiKey: string) {
 }
 
 // Fetch Instagram data
-async function fetchInstagram(apiKey: string) {
+async function fetchInstagram(apiKey: string): Promise<Omit<Parameters<typeof prisma.analytics.create>[0]['data'], 'platform' | 'date'> | null> {
   console.log('📷 Fetching Instagram...')
   const data = await executeTool(apiKey, 'INSTAGRAM_GET_IG_USER_MEDIA', { 
     ig_user_id: IG_USER_ID, 
@@ -154,7 +153,6 @@ async function fetchInstagram(apiKey: string) {
   }
 
   return {
-    platform: 'INSTAGRAM',
     followers: 45678, // Placeholder - should come from user info
     posts: media.length,
     likes,
@@ -168,7 +166,7 @@ async function fetchInstagram(apiKey: string) {
 }
 
 // Fetch YouTube data
-async function fetchYouTube(apiKey: string) {
+async function fetchYouTube(apiKey: string): Promise<Omit<Parameters<typeof prisma.analytics.create>[0]['data'], 'platform' | 'date'> | null> {
   console.log('📺 Fetching YouTube...')
   let data = await executeTool(apiKey, 'YOUTUBE_GET_CHANNEL_STATISTICS', { 
     channel_id: YT_CHANNEL_ID 
@@ -194,7 +192,6 @@ async function fetchYouTube(apiKey: string) {
 
   const s = data.statistics
   return {
-    platform: 'YOUTUBE',
     followers: parseInt(s.subscriberCount || '0'),
     posts: parseInt(s.videoCount || '0'),
     likes: 0,
@@ -296,9 +293,9 @@ export async function GET() {
       const fbData = await fetchFacebook(composioKey)
       if (fbData) {
         await prisma.analytics.upsert({
-          where: { platform_date: { platform: 'FACEBOOK', date: today } },
-          update: { ...fbData, platform: 'FACEBOOK' },
-          create: { platform: 'FACEBOOK', date: today, ...fbData }
+          where: { platform_date: { platform: 'FACEBOOK' as const, date: today } },
+          update: { ...fbData, platform: 'FACEBOOK' as const },
+          create: { platform: 'FACEBOOK' as const, date: today, ...fbData }
         })
         result.platforms.push({ platform: 'Facebook', success: true, data: fbData })
         console.log('✅ Facebook synced:', fbData)
@@ -313,9 +310,9 @@ export async function GET() {
       const igData = await fetchInstagram(composioKey)
       if (igData) {
         await prisma.analytics.upsert({
-          where: { platform_date: { platform: 'INSTAGRAM', date: today } },
-          update: { ...igData, platform: 'INSTAGRAM' },
-          create: { platform: 'INSTAGRAM', date: today, ...igData }
+          where: { platform_date: { platform: 'INSTAGRAM' as const, date: today } },
+          update: { ...igData, platform: 'INSTAGRAM' as const },
+          create: { platform: 'INSTAGRAM' as const, date: today, ...igData }
         })
         result.platforms.push({ platform: 'Instagram', success: true, data: igData })
         console.log('✅ Instagram synced:', igData)
@@ -330,9 +327,9 @@ export async function GET() {
       const ytData = await fetchYouTube(composioKey)
       if (ytData) {
         await prisma.analytics.upsert({
-          where: { platform_date: { platform: 'YOUTUBE', date: today } },
-          update: { ...ytData, platform: 'YOUTUBE' },
-          create: { platform: 'YOUTUBE', date: today, ...ytData }
+          where: { platform_date: { platform: 'YOUTUBE' as const, date: today } },
+          update: { ...ytData, platform: 'YOUTUBE' as const },
+          create: { platform: 'YOUTUBE' as const, date: today, ...ytData }
         })
         result.platforms.push({ platform: 'YouTube', success: true, data: ytData })
         console.log('✅ YouTube synced:', ytData)
