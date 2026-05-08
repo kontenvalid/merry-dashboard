@@ -10,8 +10,7 @@ import { DollarSign, Eye, MousePointer, TrendingUp, RefreshCw, AlertCircle, Load
 import { StatCard } from "@/components/stat-card";
 
 const AD_ACCOUNTS = [
-  { id: "act_2180078045608935", name: "Indonesian Account (IDR)", currency: "IDR", status: "active" },
-  { id: "act_1985101938922115", name: "Barqun Account (IDR)", currency: "IDR", status: "active" },
+  { id: "act_2061230484461298", name: "kontenval.id (IDR)", currency: "IDR", status: "active" },
 ];
 
 interface Campaign {
@@ -115,9 +114,9 @@ export default function AdsPage() {
     : [];
 
   // Only show ads section if connected and has data
-  const showAdsSection = metaAdsData?.connected && campaigns.length > 0;
-  const showAccounts = metaAdsData?.connected;
-  const showEmptyState = !metaAdsData?.connected && metaAdsData?.source !== 'loading';
+  const showAdsSection = metaAdsData?.success && campaigns.length > 0;
+  const showAccounts = metaAdsData?.success;
+  const showEmptyState = !metaAdsData?.success && !loadingData;
 
   return (
     <div className="space-y-6">
