@@ -185,28 +185,24 @@ async function fetchFacebook(apiKey: string): Promise<Omit<Parameters<typeof pri
 async function fetchInstagram(apiKey: string): Promise<Omit<Parameters<typeof prisma.analytics.create>[0]['data'], 'platform' | 'date'> | null> {
   console.log('📷 Fetching Instagram...')
   
-  // Get media
+  // Get media - use 'me' to get posts from connected account
   const response = await executeTool(apiKey, 'INSTAGRAM_GET_IG_USER_MEDIA', { 
-    ig_user_id: IG_USER_ID, 
+    ig_user_id: 'me', 
     limit: 10 
   })
   const media = response?.data
   
-  // Try to get user info for followers
-  const userInfo = await executeTool(apiKey, 'INSTAGRAM_GET_IG_USER_INFO', { 
-    ig_user_id: IG_USER_ID 
+  // Get user info for followers - must use 'me' to get follower count
+  const userInfo = await executeTool(apiKey, 'INSTAGRAM_GET_USER_INFO', { 
+    ig_user_id: 'me' 
   })
   
   // Extract followers from user info
-  let followers = 45678 // Default
-  if (userInfo?.followers_count) {
-    followers = userInfo.followers_count
-  } else if (userInfo?.followers) {
-    followers = userInfo.followers
-  }
+  let followers = userInfo?.followers_count || 0
+  if (followers === null || followers === undefined) followers = 0
   
   if (!media || !Array.isArray(media)) {
-    console.log('Instagram: no media data, userInfo:', JSON.stringify(userInfo)?.substring(0, 200))
+    console.log('Instagram: no media data, username:', userInfo?.username)
     return {
       followers,
       posts: 0,
@@ -227,7 +223,7 @@ async function fetchInstagram(apiKey: string): Promise<Omit<Parameters<typeof pr
     comments += m.comments_count || 0
   }
   
-  console.log(`📷 Instagram: ${media.length} posts, followers=${followers}`)
+  console.log(`📷 Instagram (${userInfo?.username}): ${media.length} posts, followers=${followers}`)
   return {
     followers,
     posts: media.length,
