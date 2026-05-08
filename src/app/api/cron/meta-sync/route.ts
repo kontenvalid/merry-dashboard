@@ -13,9 +13,9 @@ export async function GET() {
   const startTime = Date.now()
   
   try {
-    // Get Meta token from database
-    const apiKey = await prisma.apiKey.findUnique({
-      where: { userId_service: { userId: 'kontenval.id@gmail.com', service: 'meta_graph' } }
+    // Get Meta token from database - search by service, any user
+    const apiKey = await prisma.apiKey.findFirst({
+      where: { service: 'meta_graph', isActive: true }
     })
     
     if (!apiKey?.apiKey) {

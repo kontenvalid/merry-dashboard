@@ -34,9 +34,9 @@ export async function setMetaToken(token: string) {
 export async function getMetaToken(): Promise<string> {
   if (metaAccessToken) return metaAccessToken
   
-  // Try to get from database
-  const apiKey = await prisma.apiKey.findUnique({
-    where: { userId_service: { userId: 'kontenval.id@gmail.com', service: 'meta_graph' } }
+  // Try to get from database - search by service, any user
+  const apiKey = await prisma.apiKey.findFirst({
+    where: { service: 'meta_graph', isActive: true }
   })
   
   if (apiKey?.apiKey) {

@@ -129,6 +129,8 @@ model Analytics {
   updatedAt   DateTime @updatedAt
 
   @@unique([platform, date])
+  @@index([platform])
+  @@index([date])
   @@map("analytics")
 }
 
@@ -149,6 +151,7 @@ model AdPerformance {
   updatedAt    DateTime @updatedAt
 
   @@unique([accountId, date])
+  @@index([accountId])
   @@map("ad_performance")
 }
 

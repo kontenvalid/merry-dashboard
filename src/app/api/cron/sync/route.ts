@@ -143,9 +143,10 @@ async function syncMetaAds() {
   const results: any = { campaigns: [], totalSpend: 0, errors: [] }
   
   try {
-    const accessToken = process.env.META_ACCESS_TOKEN
+    // Get token from database (same as metaads route)
+    const accessToken = await import('@/lib/api-key-store').then(m => m.getApiKey('kontenval.id@gmail.com', 'meta_graph'))
     if (!accessToken) {
-      return { error: 'META_ACCESS_TOKEN not configured' }
+      return { error: 'No Meta Graph API token found in database' }
     }
 
     for (const acc of META_ADS_ACCOUNTS) {
