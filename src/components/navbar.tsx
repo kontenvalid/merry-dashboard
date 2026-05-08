@@ -10,7 +10,6 @@ import { Badge } from "./ui/badge";
 import {
   LayoutDashboard,
   BarChart3,
-  Share2,
   DollarSign,
   Package,
   Users,
@@ -25,7 +24,6 @@ import { useState, useRef, useEffect } from "react";
 const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
-  { href: "/social", label: "Social Media", icon: Share2 },
   { href: "/ads", label: "Ads Manager", icon: DollarSign },
   { href: "/products", label: "Products", icon: Package },
 ];
