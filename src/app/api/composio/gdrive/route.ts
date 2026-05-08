@@ -20,13 +20,13 @@ export async function GET() {
     // Get API key from database
     const apiKey = await getApiKey(userId, 'composio')
     
-    // Get user's GDrive folder settings
-    const settings = await prisma.dashboardSettings.findUnique({
-      where: { id: session.user.id }
+    // Get user's GDrive folder settings - use userId to find settings
+    const settings = await prisma.dashboardSettings.findFirst({
+      where: { userId: session.user.id }
     })
     
-    const folderId = settings?.timezone || DEFAULT_GDRIVE_FOLDER_ID // abuse timezone field for folder ID
-    const folderName = 'Products'
+    const folderId = settings?.timezone || DEFAULT_GDRIVE_FOLDER_ID
+    const folderName = 'Ebook'
 
     // Try to fetch from Composio
     let files: any[] = []
