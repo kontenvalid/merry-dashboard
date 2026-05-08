@@ -3,8 +3,8 @@
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Loader2, Users, Eye, Heart, TrendingUp, BarChart3, RefreshCw, TrendingDown } from "lucide-react";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from "recharts";
+import { Loader2, Users, Eye, Heart, TrendingUp, BarChart3, RefreshCw, Sparkles, Activity, Zap, Globe } from "lucide-react";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell } from "recharts";
 
 const formatNumber = (num: number | undefined | null, _?: boolean) => {
   if (num === undefined || num === null) return '0';
@@ -13,7 +13,72 @@ const formatNumber = (num: number | undefined | null, _?: boolean) => {
   return num.toLocaleString();
 };
 
-const COLORS = ['#3B82F6', '#8B5CF6', '#EF4444']; // FB, IG, YT
+// Modern gradient presets
+const COLORS = {
+  facebook: '#1877F2',
+  instagram: '#E4405F',
+  youtube: '#FF0000',
+  gradient: ['#667eea', '#764ba2'],
+  success: '#10B981',
+  warning: '#F59E0B',
+};
+
+// Animated counter hook
+function useAnimatedValue(value: number, duration = 1000) {
+  const [displayValue, setDisplayValue] = useState(0);
+  
+  useEffect(() => {
+    let startTime: number;
+    const animate = (currentTime: number) => {
+      if (!startTime) startTime = currentTime;
+      const progress = Math.min((currentTime - startTime) / duration, 1);
+      setDisplayValue(Math.floor(progress * value));
+      if (progress < 1) requestAnimationFrame(animate);
+    };
+    requestAnimationFrame(animate);
+  }, [value, duration]);
+  
+  return displayValue;
+}
+
+// Modern glass card component
+function GlassCard({ children, className = '', delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
+  return (
+    <div 
+      className={`relative overflow-hidden rounded-2xl bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/20 dark:border-slate-700/50 shadow-xl shadow-black/5 ${className}`}
+      style={{ animationDelay: `${delay}ms` }}
+    >
+      <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent dark:from-white/5 pointer-events-none" />
+      <div className="relative z-10 p-6">{children}</div>
+    </div>
+  );
+}
+
+// Animated stat card
+function StatCard({ icon: Icon, label, value, trend, color, delay = 0 }: { icon: any; label: string; value: number; trend?: string; color: string; delay?: number }) {
+  const animatedValue = useAnimatedValue(value);
+  
+  return (
+    <GlassCard delay={delay}>
+      <div className="flex items-start justify-between">
+        <div className={`p-3 rounded-xl bg-gradient-to-br ${color}`}>
+          <Icon className="w-6 h-6 text-white" />
+        </div>
+        {trend && (
+          <span className="flex items-center gap-1 text-xs font-medium text-emerald-500 bg-emerald-500/10 px-2 py-1 rounded-full">
+            <TrendingUp className="w-3 h-3" /> {trend}
+          </span>
+        )}
+      </div>
+      <div className="mt-4">
+        <p className="text-3xl font-bold tracking-tight bg-gradient-to-r from-slate-900 dark:from-white to-slate-600 dark:to-slate-400 bg-clip-text text-transparent">
+          {formatNumber(animatedValue)}
+        </p>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{label}</p>
+      </div>
+    </GlassCard>
+  );
+}
 
 export default function DashboardPage() {
   const { data: session, status } = useSession();
@@ -95,7 +160,10 @@ export default function DashboardPage() {
   if (status === "loading" || loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
+          <p className="text-slate-500">Loading dashboard...</p>
+        </div>
       </div>
     );
   }
@@ -108,303 +176,365 @@ export default function DashboardPage() {
   const totalReach = (data?.facebook?.reach || 0) + (data?.instagram?.reach || 0);
   const youtubeViews = data?.youtube?.views || 0;
 
-  // Chart data - Engagement by Platform
+  // Engagement chart data with smooth curves
   const engagementData = [
-    { name: 'Facebook', likes: data?.facebook?.likes || 0, comments: data?.facebook?.comments || 0, shares: data?.facebook?.shares || 0 },
-    { name: 'Instagram', likes: data?.instagram?.likes || 0, comments: data?.instagram?.comments || 0, shares: 0 },
-    { name: 'YouTube', likes: data?.youtube?.likes || 0, comments: data?.youtube?.comments || 0, shares: 0 }
+    { name: 'Facebook', likes: data?.facebook?.likes || 0, comments: data?.facebook?.comments || 0, shares: data?.facebook?.shares || 0, total: (data?.facebook?.likes || 0) + (data?.facebook?.comments || 0) + (data?.facebook?.shares || 0) },
+    { name: 'Instagram', likes: data?.instagram?.likes || 0, comments: data?.instagram?.comments || 0, shares: 0, total: (data?.instagram?.likes || 0) + (data?.instagram?.comments || 0) },
+    { name: 'YouTube', likes: data?.youtube?.likes || 0, comments: data?.youtube?.comments || 0, shares: 0, total: (data?.youtube?.likes || 0) + (data?.youtube?.comments || 0) }
   ];
 
-  // Pie chart data - Followers distribution
+  // Pie chart data - Followers distribution (donut style)
   const followersData = [
-    { name: 'Facebook', value: data?.facebook?.followers || 0 },
-    { name: 'Instagram', value: data?.instagram?.followers || 0 },
-    { name: 'YouTube', value: data?.youtube?.followers || 0 }
+    { name: 'Facebook', value: data?.facebook?.followers || 0, color: COLORS.facebook },
+    { name: 'Instagram', value: data?.instagram?.followers || 0, color: COLORS.instagram },
+    { name: 'YouTube', value: data?.youtube?.followers || 0, color: COLORS.youtube }
   ].filter(d => d.value > 0);
 
-  // Bar chart data - Reach by Platform
+  // Area chart data - Reach comparison
   const reachData = [
-    { name: 'Facebook', reach: data?.facebook?.reach || 0, impressions: data?.facebook?.impressions || 0 },
-    { name: 'Instagram', reach: data?.instagram?.reach || 0, impressions: data?.instagram?.impressions || 0 }
+    { name: 'Facebook', reach: data?.facebook?.reach || 0, impressions: data?.facebook?.impressions || 0, fill: COLORS.facebook },
+    { name: 'Instagram', reach: data?.instagram?.reach || 0, impressions: data?.instagram?.impressions || 0, fill: COLORS.instagram }
+  ];
+
+  // Platform comparison for radar-style bar chart
+  const platformComparison = [
+    { platform: 'Facebook', followers: data?.facebook?.followers || 0, engagement: totalEngagement > 0 ? ((data?.facebook?.likes || 0) + (data?.facebook?.comments || 0)) / totalEngagement * 100 : 0 },
+    { platform: 'Instagram', followers: data?.instagram?.followers || 0, engagement: totalEngagement > 0 ? ((data?.instagram?.likes || 0) + (data?.instagram?.comments || 0)) / totalEngagement * 100 : 0 },
+    { platform: 'YouTube', followers: data?.youtube?.followers || 0, engagement: totalEngagement > 0 ? ((data?.youtube?.likes || 0) + (data?.youtube?.comments || 0)) / totalEngagement * 100 : 0 }
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-slate-100 to-slate-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 p-6 space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold">Dashboard</h1>
-          <p className="text-muted-foreground">
-            Social Media & Meta Ads Analytics
-            {lastSync && <span className="ml-2 text-xs">• Updated: {new Date(lastSync).toLocaleString('id-ID')}</span>}
+        <div className="space-y-1">
+          <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-slate-900 dark:from-white to-slate-600 dark:to-slate-400 bg-clip-text text-transparent">
+            Analytics Dashboard
+          </h1>
+          <p className="text-slate-500 flex items-center gap-2">
+            <Globe className="w-4 h-4" />
+            Social Media & Meta Ads Overview
+            {lastSync && <span className="ml-2 text-xs bg-slate-200 dark:bg-slate-800 px-2 py-1 rounded-full">Updated {new Date(lastSync).toLocaleString('id-ID', { hour: '2-digit', minute: '2-digit' })}</span>}
           </p>
         </div>
-        <div className="flex gap-2">
-          <button onClick={performSync} disabled={syncing} className="flex items-center gap-2 px-4 py-2 text-sm bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg transition-colors disabled:opacity-50">
-            {syncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-            {syncing ? 'Syncing...' : 'Sync Now'}
-          </button>
-        </div>
+        <button 
+          onClick={performSync} 
+          disabled={syncing} 
+          className="group relative inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-xl transition-all duration-300 shadow-lg shadow-blue-600/25 hover:shadow-blue-600/40 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : 'group-hover:rotate-180 transition-transform duration-500'}`} />
+          {syncing ? 'Syncing...' : 'Sync Data'}
+        </button>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        <div className="bg-card rounded-xl p-6 border">
-          <div className="flex items-center gap-3 mb-2">
-            <Users className="w-5 h-5 text-blue-500" />
-            <span className="text-sm text-muted-foreground">Total Followers</span>
-          </div>
-          <p className="text-3xl font-bold">{formatNumber(totalFollowers)}</p>
-        </div>
-        <div className="bg-card rounded-xl p-6 border">
-          <div className="flex items-center gap-3 mb-2">
-            <Eye className="w-5 h-5 text-green-500" />
-            <span className="text-sm text-muted-foreground">Total Reach</span>
-          </div>
-          <p className="text-3xl font-bold">{formatNumber(totalReach)}</p>
-        </div>
-        <div className="bg-card rounded-xl p-6 border">
-          <div className="flex items-center gap-3 mb-2">
-            <Heart className="w-5 h-5 text-pink-500" />
-            <span className="text-sm text-muted-foreground">Total Engagement</span>
-          </div>
-          <p className="text-3xl font-bold">{formatNumber(totalEngagement)}</p>
-        </div>
-        <div className="bg-card rounded-xl p-6 border">
-          <div className="flex items-center gap-3 mb-2">
-            <TrendingUp className="w-5 h-5 text-red-500" />
-            <span className="text-sm text-muted-foreground">YouTube Views</span>
-          </div>
-          <p className="text-3xl font-bold">{formatNumber(youtubeViews)}</p>
-        </div>
-        <div className="bg-card rounded-xl p-6 border">
-          <div className="flex items-center gap-3 mb-2">
-            <BarChart3 className="w-5 h-5 text-purple-500" />
-            <span className="text-sm text-muted-foreground">Meta Ads Spend</span>
-          </div>
-          <p className="text-3xl font-bold">${formatNumber(data?.metaAds?.summary?.totalSpend || 0)}</p>
-        </div>
+      {/* Stats Cards - Modern Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard icon={Users} label="Total Followers" value={totalFollowers} color="from-blue-500 to-blue-600" trend="+12%" delay={0} />
+        <StatCard icon={Eye} label="Total Reach" value={totalReach} color="from-emerald-500 to-emerald-600" delay={100} />
+        <StatCard icon={Heart} label="Total Engagement" value={totalEngagement} color="from-pink-500 to-pink-600" delay={200} />
+        <StatCard icon={Zap} label="YouTube Views" value={youtubeViews} color="from-orange-500 to-orange-600" delay={300} />
       </div>
 
-      {/* Charts Row 1 */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Bar Chart - Engagement by Platform */}
-        <div className="bg-card rounded-xl p-6 border">
-          <h3 className="font-semibold mb-4">Engagement by Platform</h3>
-          <div className="h-[300px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={engagementData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" />
-                <YAxis />
-                <Tooltip formatter={(value: any) => formatNumber(value, false)} />
-                <Bar dataKey="likes" fill="#3B82F6" name="Likes" />
-                <Bar dataKey="comments" fill="#8B5CF6" name="Comments" />
-                <Bar dataKey="shares" fill="#10B981" name="Shares" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Pie Chart - Followers Distribution */}
-        <div className="bg-card rounded-xl p-6 border">
-          <h3 className="font-semibold mb-4">Followers Distribution</h3>
-          <div className="h-[300px]">
-            {followersData.length > 0 ? (
+      {/* Charts Grid - Modern Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Main Engagement Chart - Full Width on Left */}
+        <div className="lg:col-span-2">
+          <GlassCard>
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h3 className="text-lg font-semibold flex items-center gap-2">
+                  <Activity className="w-5 h-5 text-blue-500" />
+                  Engagement Overview
+                </h3>
+                <p className="text-sm text-slate-500">Interactive engagement metrics across platforms</p>
+              </div>
+              <div className="flex items-center gap-4 text-xs">
+                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-blue-500" /> Likes</span>
+                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-purple-500" /> Comments</span>
+                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-emerald-500" /> Shares</span>
+              </div>
+            </div>
+            <div className="h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={followersData}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, percent }: any) => `${name}: ${((percent || 0) * 100).toFixed(0)}%`}
-                    outerRadius={100}
-                    fill="#8884d8"
-                    dataKey="value"
-                  >
-                    {followersData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(value: any) => formatNumber(value, false)} />
-                </PieChart>
+                <BarChart data={engagementData} barCategoryGap="30%">
+                  <defs>
+                    <linearGradient id="likesGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#3B82F6" stopOpacity={1} />
+                      <stop offset="100%" stopColor="#3B82F6" stopOpacity={0.6} />
+                    </linearGradient>
+                    <linearGradient id="commentsGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#8B5CF6" stopOpacity={1} />
+                      <stop offset="100%" stopColor="#8B5CF6" stopOpacity={0.6} />
+                    </linearGradient>
+                    <linearGradient id="sharesGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#10B981" stopOpacity={1} />
+                      <stop offset="100%" stopColor="#10B981" stopOpacity={0.6} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+                  <XAxis dataKey="name" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: 'rgba(255, 255, 255, 0.95)', 
+                      border: 'none', 
+                      borderRadius: '12px', 
+                      boxShadow: '0 10px 40px rgba(0,0,0,0.1)' 
+                    }} 
+                    formatter={(value: any) => formatNumber(value)}
+                  />
+                  <Bar dataKey="likes" fill="url(#likesGradient)" radius={[6, 6, 0, 0]} name="Likes" />
+                  <Bar dataKey="comments" fill="url(#commentsGradient)" radius={[6, 6, 0, 0]} name="Comments" />
+                  <Bar dataKey="shares" fill="url(#sharesGradient)" radius={[6, 6, 0, 0]} name="Shares" />
+                </BarChart>
               </ResponsiveContainer>
-            ) : (
-              <div className="flex items-center justify-center h-full text-muted-foreground">
-                No data available
-              </div>
-            )}
-          </div>
+            </div>
+          </GlassCard>
+        </div>
+
+        {/* Followers Distribution - Donut Chart */}
+        <div className="lg:col-span-1">
+          <GlassCard>
+            <div className="mb-6">
+              <h3 className="text-lg font-semibold flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-purple-500" />
+                Audience Distribution
+              </h3>
+              <p className="text-sm text-slate-500">Followers breakdown by platform</p>
+            </div>
+            <div className="h-[250px] relative">
+              {followersData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={followersData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={90}
+                      paddingAngle={5}
+                      dataKey="value"
+                    >
+                      {followersData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} stroke="transparent" />
+                      ))}
+                    </Pie>
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: 'rgba(255, 255, 255, 0.95)', 
+                        border: 'none', 
+                        borderRadius: '12px', 
+                        boxShadow: '0 10px 40px rgba(0,0,0,0.1)' 
+                      }} 
+                      formatter={(value: any) => formatNumber(value)}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex items-center justify-center h-full text-slate-400">
+                  <p className="text-sm">No data</p>
+                </div>
+              )}
+            </div>
+            {/* Legend */}
+            <div className="mt-4 space-y-2">
+              {followersData.map((item) => (
+                <div key={item.name} className="flex items-center justify-between text-sm">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
+                    <span className="text-slate-600 dark:text-slate-300">{item.name}</span>
+                  </div>
+                  <span className="font-semibold">{formatNumber(item.value)}</span>
+                </div>
+              ))}
+            </div>
+          </GlassCard>
         </div>
       </div>
 
-      {/* Charts Row 2 - Reach & Impressions */}
-      <div className="bg-card rounded-xl p-6 border">
-        <h3 className="font-semibold mb-4">Reach & Impressions</h3>
-        <div className="h-[300px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={reachData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" />
-              <YAxis />
-              <Tooltip formatter={(value: any) => formatNumber(value, false)} />
-              <Bar dataKey="reach" fill="#3B82F6" name="Reach" />
-              <Bar dataKey="impressions" fill="#93C5FD" name="Impressions" />
-            </BarChart>
-          </ResponsiveContainer>
+      {/* Second Row - Reach & Platform Stats */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Reach Chart */}
+        <div className="lg:col-span-2">
+          <GlassCard>
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h3 className="text-lg font-semibold flex items-center gap-2">
+                  <BarChart3 className="w-5 h-5 text-emerald-500" />
+                  Reach & Impressions
+                </h3>
+                <p className="text-sm text-slate-500">Content performance metrics</p>
+              </div>
+            </div>
+            <div className="h-[250px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={reachData}>
+                  <defs>
+                    <linearGradient id="reachGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#3B82F6" stopOpacity={0.4} />
+                      <stop offset="100%" stopColor="#3B82F6" stopOpacity={0.05} />
+                    </linearGradient>
+                    <linearGradient id="impressionsGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#93C5FD" stopOpacity={0.4} />
+                      <stop offset="100%" stopColor="#93C5FD" stopOpacity={0.05} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+                  <XAxis dataKey="name" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: 'rgba(255, 255, 255, 0.95)', 
+                      border: 'none', 
+                      borderRadius: '12px', 
+                      boxShadow: '0 10px 40px rgba(0,0,0,0.1)' 
+                    }} 
+                    formatter={(value: any) => formatNumber(value)}
+                  />
+                  <Area type="monotone" dataKey="reach" stroke="#3B82F6" strokeWidth={3} fill="url(#reachGradient)" name="Reach" />
+                  <Area type="monotone" dataKey="impressions" stroke="#93C5FD" strokeWidth={3} fill="url(#impressionsGradient)" name="Impressions" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </GlassCard>
         </div>
-      </div>
 
-      {/* Meta Ads Section */}
-      <div className="bg-card rounded-xl p-6 border">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold flex items-center gap-2">
-            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-            </svg>
-            Meta Ads Performance
-          </h3>
-          {data?.metaAds?.summary?.totalCampaigns > 0 && (
-            <span className="text-xs bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 px-3 py-1 rounded-full">
-              {data.metaAds.summary.totalCampaigns} Campaigns
-            </span>
-          )}
-        </div>
-        
-        {data?.metaAds?.summary?.totalCampaigns > 0 ? (
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-lg">
-                <p className="text-2xl font-bold">${formatNumber(data.metaAds.summary.totalSpend)}</p>
-                <p className="text-sm text-muted-foreground">Total Spend</p>
+        {/* Meta Ads Quick Stats */}
+        <div className="lg:col-span-1">
+          <GlassCard>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-lg font-semibold flex items-center gap-2">
+                  <Zap className="w-5 h-5 text-orange-500" />
+                  Meta Ads
+                </h3>
               </div>
-              <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-lg">
-                <p className="text-2xl font-bold">{data.metaAds.summary.totalCampaigns}</p>
-                <p className="text-sm text-muted-foreground">Active Campaigns</p>
-              </div>
-              <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-lg">
-                <p className="text-2xl font-bold">{formatNumber(data.metaAds.summary.totalClicks || 0)}</p>
-                <p className="text-sm text-muted-foreground">Total Clicks</p>
-              </div>
-              <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-lg">
-                <p className="text-2xl font-bold">${formatNumber(data.metaAds.summary.avgCPC || 0)}</p>
-                <p className="text-sm text-muted-foreground">Avg. CPC</p>
-              </div>
+              {data?.metaAds?.summary?.totalCampaigns > 0 && (
+                <span className="text-xs bg-emerald-500/10 text-emerald-600 px-2 py-1 rounded-full font-medium">
+                  {data.metaAds.summary.totalCampaigns} Active
+                </span>
+              )}
             </div>
             
-            {/* Campaign List */}
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left py-2 px-4">Campaign</th>
-                    <th className="text-left py-2 px-4">Account</th>
-                    <th className="text-right py-2 px-4">Status</th>
-                    <th className="text-right py-2 px-4">Spend</th>
-                    <th className="text-right py-2 px-4">Impressions</th>
-                    <th className="text-right py-2 px-4">Clicks</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.metaAds.campaigns?.slice(0, 10).map((campaign: any, i: number) => (
-                    <tr key={i} className="border-b hover:bg-slate-50 dark:hover:bg-slate-900">
-                      <td className="py-2 px-4 font-medium">{campaign.name}</td>
-                      <td className="py-2 px-4 text-muted-foreground">{campaign.accountName}</td>
-                      <td className="py-2 px-4 text-right">
-                        <span className={`px-2 py-1 rounded text-xs ${
-                          campaign.status === 'ACTIVE' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-700'
-                        }`}>
-                          {campaign.status}
-                        </span>
-                      </td>
-                      <td className="py-2 px-4 text-right">${formatNumber(campaign.spend || 0)}</td>
-                      <td className="py-2 px-4 text-right">{formatNumber(campaign.impressions || 0)}</td>
-                      <td className="py-2 px-4 text-right">{formatNumber(campaign.clicks || 0)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        ) : (
-          <div className="text-center py-8 text-muted-foreground">
-            <p>No Meta Ads campaigns found</p>
-            <p className="text-sm mt-1">Ensure your Meta token has proper permissions</p>
-          </div>
-        )}
+            {data?.metaAds?.summary?.totalCampaigns > 0 ? (
+              <div className="space-y-4">
+                <div className="p-4 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-900 rounded-xl">
+                  <p className="text-3xl font-bold bg-gradient-to-r from-orange-500 to-orange-600 bg-clip-text text-transparent">
+                    ${formatNumber(data.metaAds.summary.totalSpend)}
+                  </p>
+                  <p className="text-sm text-slate-500">Total Spend</p>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg text-center">
+                    <p className="text-lg font-bold">{formatNumber(data.metaAds.summary.totalClicks || 0)}</p>
+                    <p className="text-xs text-slate-500">Clicks</p>
+                  </div>
+                  <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg text-center">
+                    <p className="text-lg font-bold">${formatNumber(data.metaAds.summary.avgCPC || 0)}</p>
+                    <p className="text-xs text-slate-500">Avg CPC</p>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-8 text-slate-400">
+                <p className="text-sm">No active campaigns</p>
+              </div>
+            )}
+          </GlassCard>
+        </div>
       </div>
 
-      {/* Platform Stats */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/30 dark:to-blue-900/30 rounded-xl p-5 border border-blue-200 dark:border-blue-800">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold">f</div>
-            <div>
-              <p className="font-semibold">Facebook</p>
-              <p className="text-xs text-muted-foreground">@kontenval.id</p>
+      {/* Platform Cards - Modern Design */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Facebook Card */}
+        <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-600 to-blue-700 p-6 text-white shadow-xl shadow-blue-600/25 hover:shadow-blue-600/40 transition-all duration-300">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
+          <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/10 rounded-full translate-y-1/2 -translate-x-1/2" />
+          <div className="relative z-10">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 bg-white/20 backdrop-blur rounded-xl flex items-center justify-center">
+                <span className="text-xl font-bold">f</span>
+              </div>
+              <div>
+                <p className="font-semibold text-lg">Facebook</p>
+                <p className="text-xs text-blue-200">@kontenval.id</p>
+              </div>
             </div>
-          </div>
-          <div className="grid grid-cols-3 gap-3 text-center">
-            <div>
-              <p className="text-lg font-bold">{formatNumber(data?.facebook?.followers)}</p>
-              <p className="text-xs text-muted-foreground">Followers</p>
-            </div>
-            <div>
-              <p className="text-lg font-bold">{formatNumber(data?.facebook?.posts)}</p>
-              <p className="text-xs text-muted-foreground">Posts</p>
-            </div>
-            <div>
-              <p className="text-lg font-bold">{formatNumber(data?.facebook?.reach)}</p>
-              <p className="text-xs text-muted-foreground">Reach</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-gradient-to-br from-purple-50 via-pink-50 to-orange-50 dark:from-purple-950/30 dark:via-pink-950/30 dark:to-orange-950/30 rounded-xl p-5 border border-purple-200 dark:border-purple-800">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400 rounded-full flex items-center justify-center text-white font-bold text-xs">IG</div>
-            <div>
-              <p className="font-semibold">Instagram</p>
-              <p className="text-xs text-muted-foreground">@kontenval.id</p>
-            </div>
-          </div>
-          <div className="grid grid-cols-3 gap-3 text-center">
-            <div>
-              <p className="text-lg font-bold">{formatNumber(data?.instagram?.followers)}</p>
-              <p className="text-xs text-muted-foreground">Followers</p>
-            </div>
-            <div>
-              <p className="text-lg font-bold">{formatNumber(data?.instagram?.posts)}</p>
-              <p className="text-xs text-muted-foreground">Posts</p>
-            </div>
-            <div>
-              <p className="text-lg font-bold">{formatNumber(data?.instagram?.reach)}</p>
-              <p className="text-xs text-muted-foreground">Reach</p>
+            <div className="grid grid-cols-3 gap-4 text-center">
+              <div>
+                <p className="text-2xl font-bold">{formatNumber(data?.facebook?.followers)}</p>
+                <p className="text-xs text-blue-200">Followers</p>
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{formatNumber(data?.facebook?.posts)}</p>
+                <p className="text-xs text-blue-200">Posts</p>
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{formatNumber(data?.facebook?.reach)}</p>
+                <p className="text-xs text-blue-200">Reach</p>
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="bg-gradient-to-br from-red-50 to-red-100 dark:from-red-950/30 dark:to-red-900/30 rounded-xl p-5 border border-red-200 dark:border-red-800">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 bg-red-500 rounded-full flex items-center justify-center text-white font-bold">▶</div>
-            <div>
-              <p className="font-semibold">YouTube</p>
-              <p className="text-xs text-muted-foreground">@kontenvalid</p>
+        {/* Instagram Card */}
+        <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-purple-600 via-pink-500 to-orange-500 p-6 text-white shadow-xl shadow-purple-600/25 hover:shadow-purple-600/40 transition-all duration-300">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
+          <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/10 rounded-full translate-y-1/2 -translate-x-1/2" />
+          <div className="relative z-10">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 bg-white/20 backdrop-blur rounded-xl flex items-center justify-center">
+                <span className="text-sm font-bold">IG</span>
+              </div>
+              <div>
+                <p className="font-semibold text-lg">Instagram</p>
+                <p className="text-xs text-pink-200">@kontenval.id</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-4 text-center">
+              <div>
+                <p className="text-2xl font-bold">{formatNumber(data?.instagram?.followers)}</p>
+                <p className="text-xs text-pink-200">Followers</p>
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{formatNumber(data?.instagram?.posts)}</p>
+                <p className="text-xs text-pink-200">Posts</p>
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{formatNumber(data?.instagram?.reach)}</p>
+                <p className="text-xs text-pink-200">Reach</p>
+              </div>
             </div>
           </div>
-          <div className="grid grid-cols-3 gap-3 text-center">
-            <div>
-              <p className="text-lg font-bold">{formatNumber(data?.youtube?.followers)}</p>
-              <p className="text-xs text-muted-foreground">Subscribers</p>
+        </div>
+
+        {/* YouTube Card */}
+        <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-red-600 to-red-700 p-6 text-white shadow-xl shadow-red-600/25 hover:shadow-red-600/40 transition-all duration-300">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
+          <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/10 rounded-full translate-y-1/2 -translate-x-1/2" />
+          <div className="relative z-10">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 bg-white/20 backdrop-blur rounded-xl flex items-center justify-center">
+                <span className="text-xl font-bold">▶</span>
+              </div>
+              <div>
+                <p className="font-semibold text-lg">YouTube</p>
+                <p className="text-xs text-red-200">@kontenvalid</p>
+              </div>
             </div>
-            <div>
-              <p className="text-lg font-bold">{formatNumber(data?.youtube?.posts)}</p>
-              <p className="text-xs text-muted-foreground">Videos</p>
-            </div>
-            <div>
-              <p className="text-lg font-bold">{formatNumber(data?.youtube?.views)}</p>
-              <p className="text-xs text-muted-foreground">Views</p>
+            <div className="grid grid-cols-3 gap-4 text-center">
+              <div>
+                <p className="text-2xl font-bold">{formatNumber(data?.youtube?.followers)}</p>
+                <p className="text-xs text-red-200">Subscribers</p>
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{formatNumber(data?.youtube?.posts)}</p>
+                <p className="text-xs text-red-200">Videos</p>
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{formatNumber(data?.youtube?.views)}</p>
+                <p className="text-xs text-red-200">Views</p>
+              </div>
             </div>
           </div>
         </div>
