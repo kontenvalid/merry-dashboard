@@ -494,7 +494,7 @@ export async function fetchAllData(): Promise<FetchResult> {
           await prisma.dashboardSettings.upsert({
             where: { id: 'catalog' },
             update: { metaAdsData: JSON.stringify({ catalogId: catalog.id, catalogName: catalog.name, products }) },
-            create: { id: 'catalog', metaAdsData: JSON.stringify({ catalogId: catalog.id, catalogName: catalog.name, products }) }
+            create: { id: 'catalog', userId: 'system', metaAdsData: JSON.stringify({ catalogId: catalog.id, catalogName: catalog.name, products }) }
           })
         }
       }
