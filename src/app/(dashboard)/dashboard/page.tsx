@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { Loader2, Users, Eye, Heart, TrendingUp, BarChart3, RefreshCw, TrendingDown } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from "recharts";
 
-const formatNumber = (num: number | undefined | null) => {
+const formatNumber = (num: number | undefined | null, _?: boolean) => {
   if (num === undefined || num === null) return '0';
   if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
   if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
