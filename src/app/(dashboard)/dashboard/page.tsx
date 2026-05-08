@@ -197,7 +197,7 @@ export default function DashboardPage() {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="name" />
                 <YAxis />
-                <Tooltip formatter={(value: number) => formatNumber(value, false)} />
+                <Tooltip formatter={(value: any) => formatNumber(value, false)} />
                 <Bar dataKey="likes" fill="#3B82F6" name="Likes" />
                 <Bar dataKey="comments" fill="#8B5CF6" name="Comments" />
                 <Bar dataKey="shares" fill="#10B981" name="Shares" />
@@ -227,7 +227,7 @@ export default function DashboardPage() {
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
-                  <Tooltip formatter={(value: number) => formatNumber(value, false)} />
+                  <Tooltip formatter={(value: any) => formatNumber(value, false)} />
                 </PieChart>
               </ResponsiveContainer>
             ) : (
@@ -248,7 +248,7 @@ export default function DashboardPage() {
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="name" />
               <YAxis />
-              <Tooltip formatter={(value: number) => formatNumber(value, false)} />
+              <Tooltip formatter={(value: any) => formatNumber(value, false)} />
               <Bar dataKey="reach" fill="#3B82F6" name="Reach" />
               <Bar dataKey="impressions" fill="#93C5FD" name="Impressions" />
             </BarChart>
