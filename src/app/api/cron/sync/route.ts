@@ -76,16 +76,29 @@ async function executeTool(apiKey: string, toolSlug: string, args: any): Promise
     return null
   }
 
-  // Parse result
+  // Parse result - content is a JSON string inside result.content[0].text
   const text = result?.result?.content?.[0]?.text
   if (!text) {
-    console.warn(`executeTool ${toolSlug}: no text content`)
+    console.warn(`executeTool ${toolSlug}: no text content in result`)
     return null
   }
 
   try {
     const parsed = JSON.parse(text)
-    return parsed?.data?.results?.[0]?.response?.data || parsed?.data?.results?.[0]?.response || parsed
+    // Data structure: parsed.data.results[0].response.data.data (posts array)
+    // But sometimes it's: parsed.data.results[0].response.data (directly posts array)
+    const results = parsed?.data?.results
+    if (results && results.length > 0) {
+      const responseData = results[0].response?.data
+      // Check if data has .data property (posts array) or is the array itself
+      if (responseData?.data && Array.isArray(responseData.data)) {
+        return responseData
+      } else if (responseData && typeof responseData === 'object') {
+        return responseData
+      }
+      return results[0].response
+    }
+    return parsed
   } catch (e) {
     console.warn(`executeTool ${toolSlug}: JSON parse failed, returning raw`)
     return text
@@ -100,17 +113,18 @@ const YT_CHANNEL_ID = 'UCK2C25kK4E3PR6w0gPNCjaA'
 // Fetch Facebook data
 async function fetchFacebook(apiKey: string): Promise<Omit<Parameters<typeof prisma.analytics.create>[0]['data'], 'platform' | 'date'> | null> {
   console.log('📘 Fetching Facebook...')
-  const data = await executeTool(apiKey, 'FACEBOOK_GET_PAGE_POSTS', { 
+  const response = await executeTool(apiKey, 'FACEBOOK_GET_PAGE_POSTS', { 
     page_id: FB_PAGE_ID, 
     limit: 10 
   })
   
-  if (!data?.data) {
-    console.log('Facebook: no posts data')
+  // Data structure: response.data.data (posts array)
+  const posts = response?.data
+  if (!posts || !Array.isArray(posts)) {
+    console.log('Facebook: no posts data, response:', JSON.stringify(response)?.substring(0, 200))
     return null
   }
 
-  const posts = data.data
   let likes = 0, comments = 0, shares = 0
   
   for (const p of posts) {
@@ -118,6 +132,8 @@ async function fetchFacebook(apiKey: string): Promise<Omit<Parameters<typeof pri
     comments += p.comments?.summary?.total_count || 0
     shares += p.shares?.count || 0
   }
+
+  console.log(`📘 Facebook: ${posts.length} posts, likes=${likes}, comments=${comments}, shares=${shares}`)
 
   return {
     followers: 6, // Fixed value if not available
@@ -134,23 +150,26 @@ async function fetchFacebook(apiKey: string): Promise<Omit<Parameters<typeof pri
 // Fetch Instagram data
 async function fetchInstagram(apiKey: string): Promise<Omit<Parameters<typeof prisma.analytics.create>[0]['data'], 'platform' | 'date'> | null> {
   console.log('📷 Fetching Instagram...')
-  const data = await executeTool(apiKey, 'INSTAGRAM_GET_IG_USER_MEDIA', { 
+  const response = await executeTool(apiKey, 'INSTAGRAM_GET_IG_USER_MEDIA', { 
     ig_user_id: IG_USER_ID, 
     limit: 10 
   })
   
-  if (!data?.data) {
-    console.log('Instagram: no media data')
+  // Data structure: response.data (media array)
+  const media = response?.data
+  if (!media || !Array.isArray(media)) {
+    console.log('Instagram: no media data, response:', JSON.stringify(response)?.substring(0, 200))
     return null
   }
 
-  const media = data.data
   let likes = 0, comments = 0
   
   for (const m of media) {
     likes += m.like_count || 0
     comments += m.comments_count || 0
   }
+
+  console.log(`📷 Instagram: ${media.length} posts, likes=${likes}, comments=${comments}`)
 
   return {
     followers: 45678, // Placeholder - should come from user info
