@@ -11,8 +11,8 @@ const META_ADS_ACCOUNTS = [
 // GET - Read dashboard data from database
 export async function GET() {
   try {
-    const userId = 'kontenval.id@gmail.com'
-    // Use UTC date for consistency
+    // Use the actual user ID from database
+    const userId = 'cmopvdcrn00004e1xbsct0hbq'
     const now = new Date()
     const today = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0))
     console.log('Querying analytics for:', today.toISOString())

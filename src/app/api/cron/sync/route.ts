@@ -353,7 +353,8 @@ export async function GET() {
 
   try {
     // Get API keys
-    const userId = 'kontenval.id@gmail.com'
+    // Use the actual user ID from database
+    const userId = 'cmopvdcrn00004e1xbsct0hbq'
     const composioKey = await getApiKey(userId, 'composio')
     const metaToken = await getApiKey(userId, 'meta_graph')
 
