@@ -17,12 +17,13 @@ export async function GET() {
     const today = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0))
     console.log('Querying analytics for:', today.toISOString())
 
-    // Fetch latest analytics from database
+    // Fetch all analytics records (not just today) to see if we have any data
     const analyticsRecords = await prisma.analytics.findMany({
       where: {
         date: today
       }
     })
+    console.log('Found analytics records:', analyticsRecords.length)
 
     // Fetch settings for Meta Ads and Google Drive data (keyed by 'metaAds' and 'gdrive')
     const metaAdsSettings = await prisma.dashboardSettings.findUnique({
