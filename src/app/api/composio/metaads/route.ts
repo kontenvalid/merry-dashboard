@@ -14,7 +14,7 @@ const META_API_BASE = 'https://graph.facebook.com/v21.0'
 export async function GET() {
   try {
     // Get Meta Graph API token from database
-    const accessToken = await getApiKey('kontenval.id@gmail.com', 'meta_graph')
+    const accessToken = await getApiKey('cmopvdcrn00004e1xbsct0hbq', 'meta_graph')
 
     if (!accessToken) {
       return NextResponse.json({
