@@ -22,16 +22,19 @@ export async function GET() {
       }
     })
 
-    // Fetch settings for Meta Ads and Google Drive data
-    const settings = await prisma.dashboardSettings.findUnique({
-      where: { id: userId }
+    // Fetch settings for Meta Ads and Google Drive data (keyed by 'metaAds' and 'gdrive')
+    const metaAdsSettings = await prisma.dashboardSettings.findUnique({
+      where: { id: 'metaAds' }
+    })
+    const gdriveSettings = await prisma.dashboardSettings.findUnique({
+      where: { id: 'gdrive' }
     })
 
     // Parse Meta Ads data
     let metaAds = { connected: false, accounts: META_ADS_ACCOUNTS, campaigns: [], summary: { totalSpend: 0, totalCampaigns: 0, avgCPC: 0 } }
-    if (settings?.metaAdsData) {
+    if (metaAdsSettings?.metaAdsData) {
       try {
-        const parsedMeta = JSON.parse(settings.metaAdsData)
+        const parsedMeta = JSON.parse(metaAdsSettings.metaAdsData)
         metaAds = {
           connected: true,
           accounts: META_ADS_ACCOUNTS,
@@ -49,9 +52,9 @@ export async function GET() {
 
     // Parse Google Drive data
     let googleDrive = { connected: false, fileCount: 0 }
-    if (settings?.googleDriveData) {
+    if (gdriveSettings?.googleDriveData) {
       try {
-        const parsedGD = JSON.parse(settings.googleDriveData)
+        const parsedGD = JSON.parse(gdriveSettings.googleDriveData)
         googleDrive = {
           connected: true,
           fileCount: parsedGD.fileCount || 0
@@ -115,11 +118,12 @@ export async function GET() {
     const latestRecord = await prisma.analytics.findFirst({
       orderBy: { updatedAt: 'desc' }
     })
+    const lastUpdate = metaAdsSettings?.updatedAt || gdriveSettings?.updatedAt || latestRecord?.updatedAt
 
     return NextResponse.json({
       success: true,
       source: 'database',
-      timestamp: settings?.updatedAt?.toISOString() || latestRecord?.updatedAt?.toISOString() || new Date().toISOString(),
+      timestamp: lastUpdate?.toISOString() || new Date().toISOString(),
       data
     })
   } catch (error: any) {
