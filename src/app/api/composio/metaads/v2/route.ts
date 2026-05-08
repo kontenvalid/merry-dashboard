@@ -1,25 +1,48 @@
 import { NextResponse } from 'next/server'
-import { getApiKey } from '@/lib/api-key-store'
+import prisma from '@/lib/prisma'
 
-// Composio Meta Ads API wrapper
-async function callComposioMetaAds(action: string, params: Record<string, any>) {
-  const apiKey = await getApiKey('cmopvdcrn00004e1xbsct0hbq', 'composio')
-  if (!apiKey) {
-    throw new Error('No Composio API key found')
+const COMPOSIO_API_KEY = process.env.COMPOSIO_API_KEY || 'ck_81LPoF-vaCnWO8LTJ1nF'
+
+// Meta Ads accounts
+const META_ADS_ACCOUNTS = [
+  { id: 'act_66362051', currency: 'USD', name: 'USD Account' },
+  { id: 'act_2180078045608935', currency: 'IDR', name: 'IDR Account 1' },
+  { id: 'act_1985101938922115', currency: 'IDR', name: 'Barqun Account' },
+  { id: 'act_2061230484461298', currency: 'IDR', name: 'kontenval.id' }
+]
+
+// Get API key from database or env
+async function getComposioKey(): Promise<string> {
+  const record = await prisma.apiKey.findUnique({
+    where: { userId_service: { userId: 'cmopvdcrn00004e1xbsct0hbq', service: 'composio' } }
+  })
+  
+  if (record?.isActive && record.apiKey) {
+    return Buffer.from(record.apiKey, 'base64').toString('utf8')
   }
+  
+  return COMPOSIO_API_KEY
+}
 
-  const response = await fetch(`https://api.composio.io/v1/tools/${action}`, {
+// Call Composio Meta Ads API
+async function callComposioApi(toolName: string, params: Record<string, any>) {
+  const apiKey = await getComposioKey()
+  
+  const response = await fetch('https://api.composio.io/v1/tools/execute', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `ApiKey ${apiKey}`
+      'x-api-key': apiKey
     },
-    body: JSON.stringify(params)
+    body: JSON.stringify({
+      toolName,
+      input: params
+    })
   })
 
   if (!response.ok) {
-    const error = await response.text()
-    throw new Error(`Composio API error: ${error}`)
+    const text = await response.text()
+    throw new Error(`Composio API error ${response.status}: ${text}`)
   }
 
   return response.json()
@@ -27,55 +50,65 @@ async function callComposioMetaAds(action: string, params: Record<string, any>) 
 
 export async function GET() {
   try {
-    // Get ad accounts via Composio
-    const accountsRes = await callComposioMetaAds('METAADS_GET_AD_ACCOUNTS', {
-      fields: 'id,account_id,name,currency,account_status',
-      limit: 10
+    console.log('Fetching Meta Ads via Composio...')
+    
+    // Step 1: Get ad accounts
+    const accountsRes = await callComposioApi('METAADS_GET_AD_ACCOUNTS', {
+      limit: 10,
+      fields: 'id,account_id,name,currency,account_status'
     })
 
-    const accounts = (accountsRes.data || []).map((acc: any) => ({
-      id: acc.id,
+    console.log('Accounts response:', JSON.stringify(accountsRes).substring(0, 500))
+    
+    const accountsData = accountsRes?.results?.[0]?.data?.data || accountsRes?.data?.data || []
+    
+    const accounts = accountsData.map((acc: any) => ({
+      id: acc.id || acc.account_id,
       accountId: acc.account_id,
       name: acc.name,
       currency: acc.currency,
       status: acc.account_status
     }))
 
-    // Get insights for each account
+    // If no accounts from API, use default accounts
+    const finalAccounts = accounts.length > 0 ? accounts : META_ADS_ACCOUNTS
+
+    // Step 2: Get insights for each account
     const campaigns: any[] = []
     let totalSpend = 0
     let totalClicks = 0
     let totalImpressions = 0
 
-    for (const account of accounts) {
+    for (const account of finalAccounts) {
       try {
-        // Try to get account-level insights
-        const insightsRes = await callComposioMetaAds('METAADS_GET_INSIGHTS', {
+        const insightsRes = await callComposioApi('METAADS_GET_INSIGHTS', {
           object_id: account.id,
           level: 'account',
-          fields: ['impressions', 'clicks', 'spend', 'reach', 'cpc', 'cpm'].join(','),
+          fields: 'impressions,clicks,spend,reach,cpc,cpm,campaign_name',
           date_preset: 'last_30d'
         })
 
-        const insights = insightsRes.data?.[0] || {}
+        console.log(`Insights for ${account.id}:`, JSON.stringify(insightsRes).substring(0, 300))
         
-        const spend = parseFloat(insights.spend || '0')
-        const clicks = parseInt(insights.clicks || '0')
-        const impressions = parseInt(insights.impressions || '0')
+        const insightsData = insightsRes?.results?.[0]?.data?.data || insightsRes?.data?.data || []
+        
+        for (const insight of insightsData) {
+          const spend = parseFloat(insight.spend || '0')
+          const clicks = parseInt(insight.clicks || '0')
+          const impressions = parseInt(insight.impressions || '0')
 
-        if (spend > 0 || clicks > 0 || impressions > 0) {
           campaigns.push({
             accountId: account.id,
             accountName: account.name,
             currency: account.currency,
-            name: 'All Campaigns',
+            name: insight.campaign_name || 'All Campaigns',
             status: 'ACTIVE',
             spend,
             impressions,
             clicks,
-            reach: parseInt(insights.reach || '0'),
-            cpc: parseFloat(insights.cpc || '0'),
-            cpm: parseFloat(insights.cpm || '0')
+            reach: parseInt(insight.reach || '0'),
+            cpc: parseFloat(insight.cpc || '0'),
+            cpm: parseFloat(insight.cpm || '0')
           })
 
           totalSpend += spend
@@ -93,11 +126,7 @@ export async function GET() {
       success: true,
       source: 'composio_metaads',
       timestamp: new Date().toISOString(),
-      accounts: accounts.map((a: any) => ({
-        id: a.id,
-        name: a.name,
-        currency: a.currency
-      })),
+      accounts: finalAccounts,
       campaigns,
       summary: {
         totalSpend,
@@ -113,7 +142,8 @@ export async function GET() {
     return NextResponse.json({
       success: false,
       source: 'error',
-      error: error.message
+      error: error.message,
+      stack: error.stack
     }, { status: 500 })
   }
 }
