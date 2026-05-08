@@ -1,11 +1,9 @@
 import { NextResponse } from 'next/server'
 import { getApiKey } from '@/lib/api-key-store'
 
-// Meta Ads accounts
+// Meta Ads accounts - use the account that the token has access to
 const META_ADS_ACCOUNTS = [
-  { id: 'act_66362051', currency: 'USD', name: 'USD Account' },
-  { id: 'act_2180078045608935', currency: 'IDR', name: 'IDR Account 1' },
-  { id: 'act_1985101938922115', currency: 'IDR', name: 'Barqun Account' }
+  { id: 'act_2061230484461298', currency: 'IDR', name: 'kontenval.id' }
 ]
 
 // Meta Graph API base URL
@@ -26,49 +24,99 @@ export async function GET() {
 
     const campaigns: any[] = []
     let totalSpend = 0
+    let totalClicks = 0
+    let totalImpressions = 0
 
     // Fetch campaigns for each account
     for (const account of META_ADS_ACCOUNTS) {
       try {
-        // Get campaigns
-        const campaignsRes = await fetch(
-          `${META_API_BASE}/${account.id}/campaigns?fields=id,name,status,daily_budget,spend&access_token=${accessToken}`
+        // Get account-level insights
+        const insightsRes = await fetch(
+          `${META_API_BASE}/${account.id}/insights?fields=impressions,clicks,spend,reach,cpc,cpm&date_preset=last_30d&access_token=${accessToken}`
         )
 
-        if (!campaignsRes.ok) {
-          console.warn(`Failed to fetch campaigns for ${account.id}: ${campaignsRes.status}`)
+        if (!insightsRes.ok) {
+          const errorData = await insightsRes.json()
+          console.warn(`Failed to fetch insights for ${account.id}:`, errorData)
+          
+          // Try with act_ prefix
+          if (insightsRes.status === 400) {
+            const altInsightsRes = await fetch(
+              `${META_API_BASE}/${account.id.replace('act_', '')}/insights?fields=impressions,clicks,spend,reach,cpc,cpm&date_preset=last_30d&access_token=${accessToken}`
+            )
+            if (altInsightsRes.ok) {
+              const altData = await altInsightsRes.json()
+              if (altData.data?.length > 0) {
+                for (const insight of altData.data) {
+                  const spend = parseFloat(insight.spend || '0')
+                  const clicks = parseInt(insight.clicks || '0')
+                  const impressions = parseInt(insight.impressions || '0')
+
+                  campaigns.push({
+                    accountId: account.id,
+                    accountName: account.name,
+                    currency: account.currency,
+                    name: 'Account Summary',
+                    status: 'ACTIVE',
+                    spend,
+                    impressions,
+                    clicks,
+                    reach: parseInt(insight.reach || '0'),
+                    cpc: parseFloat(insight.cpc || '0'),
+                    cpm: parseFloat(insight.cpm || '0')
+                  })
+
+                  totalSpend += spend
+                  totalClicks += clicks
+                  totalImpressions += impressions
+                }
+              }
+            }
+          }
           continue
         }
 
-        const campaignsData = await campaignsRes.json()
+        const insightsData = await insightsRes.json()
 
-        for (const campaign of campaignsData.data || []) {
-          // Get insights for each campaign
-          const insightsRes = await fetch(
-            `${META_API_BASE}/${campaign.id}/insights?fields=spend,impressions,clicks&access_token=${accessToken}`
-          )
+        if (insightsData.data?.length > 0) {
+          for (const insight of insightsData.data) {
+            const spend = parseFloat(insight.spend || '0')
+            const clicks = parseInt(insight.clicks || '0')
+            const impressions = parseInt(insight.impressions || '0')
 
-          let insights: any = {}
-          if (insightsRes.ok) {
-            const insightsData = await insightsRes.json()
-            insights = insightsData.data?.[0] || {}
+            campaigns.push({
+              accountId: account.id,
+              accountName: account.name,
+              currency: account.currency,
+              name: 'Account Summary',
+              status: 'ACTIVE',
+              spend,
+              impressions,
+              clicks,
+              reach: parseInt(insight.reach || '0'),
+              cpc: parseFloat(insight.cpc || '0'),
+              cpm: parseFloat(insight.cpm || '0')
+            })
+
+            totalSpend += spend
+            totalClicks += clicks
+            totalImpressions += impressions
           }
-
-          const spend = parseFloat(insights.spend || campaign.spend || '0')
-
+        } else {
+          // No data - account exists but no spend/impressions
           campaigns.push({
             accountId: account.id,
             accountName: account.name,
             currency: account.currency,
-            name: campaign.name,
-            status: campaign.status,
-            spend: spend || undefined,
-            impressions: parseInt(insights.impressions || '0') || undefined,
-            clicks: parseInt(insights.clicks || '0') || undefined,
-            budget: campaign.daily_budget ? parseFloat(campaign.daily_budget) / 100 : undefined
+            name: 'No active campaigns',
+            status: 'INACTIVE',
+            spend: 0,
+            impressions: 0,
+            clicks: 0,
+            reach: 0,
+            cpc: 0,
+            cpm: 0
           })
-
-          totalSpend += spend
         }
       } catch (e) {
         console.warn(`Error fetching data for ${account.id}:`, e)
@@ -76,8 +124,8 @@ export async function GET() {
     }
 
     // Calculate summary
-    const totalClicks = campaigns.reduce((acc, c) => acc + (c.clicks || 0), 0)
     const avgCPC = totalClicks > 0 ? totalSpend / totalClicks : 0
+    const avgCPM = totalImpressions > 0 ? (totalSpend / totalImpressions) * 1000 : 0
 
     return NextResponse.json({
       success: true,
@@ -87,9 +135,11 @@ export async function GET() {
       campaigns,
       summary: {
         totalSpend,
-        totalCampaigns: campaigns.length,
+        totalCampaigns: campaigns.filter(c => c.status === 'ACTIVE').length,
         totalClicks,
-        avgCPC
+        totalImpressions,
+        avgCPC,
+        avgCPM
       }
     })
   } catch (error: any) {
