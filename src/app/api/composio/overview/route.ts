@@ -54,13 +54,14 @@ export async function GET() {
     }
 
     // Parse Google Drive data
-    let googleDrive = { connected: false, fileCount: 0 }
+    let googleDrive = { connected: false, fileCount: 0, folder: { id: '1iTAz2sMPMJro0svMXcrDrGJGZAu8ixCF', name: 'Ebook', link: 'https://drive.google.com/drive/folders/1iTAz2sMPMJro0svMXcrDrGJGZAu8ixCF' } }
     if (gdriveSettings?.googleDriveData) {
       try {
         const parsedGD = JSON.parse(gdriveSettings.googleDriveData)
         googleDrive = {
           connected: true,
-          fileCount: parsedGD.fileCount || 0
+          fileCount: parsedGD.fileCount || 0,
+          folder: { id: '1iTAz2sMPMJro0svMXcrDrGJGZAu8ixCF', name: 'Ebook', link: 'https://drive.google.com/drive/folders/1iTAz2sMPMJro0svMXcrDrGJGZAu8ixCF' }
         }
       } catch (e) {
         console.warn('Failed to parse googleDriveData:', e)
