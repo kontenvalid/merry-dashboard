@@ -297,7 +297,7 @@ export async function GET() {
       if (fbData) {
         await prisma.analytics.upsert({
           where: { platform_date: { platform: 'FACEBOOK', date: today } },
-          update: fbData,
+          update: { ...fbData, platform: 'FACEBOOK' },
           create: { platform: 'FACEBOOK', date: today, ...fbData }
         })
         result.platforms.push({ platform: 'Facebook', success: true, data: fbData })
@@ -314,7 +314,7 @@ export async function GET() {
       if (igData) {
         await prisma.analytics.upsert({
           where: { platform_date: { platform: 'INSTAGRAM', date: today } },
-          update: igData,
+          update: { ...igData, platform: 'INSTAGRAM' },
           create: { platform: 'INSTAGRAM', date: today, ...igData }
         })
         result.platforms.push({ platform: 'Instagram', success: true, data: igData })
@@ -331,7 +331,7 @@ export async function GET() {
       if (ytData) {
         await prisma.analytics.upsert({
           where: { platform_date: { platform: 'YOUTUBE', date: today } },
-          update: ytData,
+          update: { ...ytData, platform: 'YOUTUBE' },
           create: { platform: 'YOUTUBE', date: today, ...ytData }
         })
         result.platforms.push({ platform: 'YouTube', success: true, data: ytData })
