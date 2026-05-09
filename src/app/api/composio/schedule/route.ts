@@ -334,17 +334,17 @@ async function addContentRows(apiKey: string, spreadsheetId: string, sheetName: 
   })
 }
 
-function generateSampleContent(year: number, month: number): any[] {
+function generateSampleContent(year: number, month: number): { date: string; day: string; topic: string; category: string; caption: string; imageTheme: string; slide1: string; slide2: string; slide3: string; status: string; }[] {
   const topics = [
     { topic: 'AI Agents 101', category: 'AI Tips', caption: 'Kenalan dengan AI Agents yang akan mengubah cara kerja kamu! 🤖 #AI #Tech' },
-    { topic: 'ChatGPT Tricks', category: 'AI Hack', caption: '5ChatGPT tricks yang jarang orang tau! 💡 #ChatGPT #Productivity' },
+    { topic: 'ChatGPT Tricks', category: 'AI Hack', caption: '5 ChatGPT tricks yang jarang orang tau! 💡 #ChatGPT #Productivity' },
     { topic: 'Midjourney v7', category: 'AI Tips', caption: 'Midjourney v7 keluar! Ini fitur barunya 🎨 #Midjourney #AIArt' },
     { topic: 'Gemini Advanced', category: 'AI Tips', caption: 'Gemini Advanced vs ChatGPT Plus, mana lebih baik? 🔥 #Gemini #AI' },
     { topic: 'Claude 4 Released', category: 'AI Hack', caption: 'Claude 4 baru aja release! Ini yang kamu perlu tau 👀 #Claude #Anthropic' }
   ]
 
   const daysInMonth = new Date(year, month, 0).getDate()
-  const content = []
+  const content: { date: string; day: string; topic: string; category: string; caption: string; imageTheme: string; slide1: string; slide2: string; slide3: string; status: string; }[] = []
   
   // Generate ~4 posts per month
   const postingDays = [5, 12, 19, 26]
