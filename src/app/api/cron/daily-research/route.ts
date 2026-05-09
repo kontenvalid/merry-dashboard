@@ -220,6 +220,7 @@ async function saveResearchToDb(
     },
     create: { 
       id: 'dailyResearch',
+      userId: 'cmopvdcrn00004e1xbsct0hbq', // System user
       metaAdsData: JSON.stringify(researchData)
     }
   })

@@ -17,7 +17,7 @@ import { getApiKey } from '@/lib/api-key-store'
 const MCP_ENDPOINT = 'https://connect.composio.dev/mcp'
 
 // Simple MCP client
-async function callMcp(apiKey: string, method: string, params: any): any {
+async function callMcp(apiKey: string, method: string, params: any): Promise<any> {
   try {
     const response = await fetch(MCP_ENDPOINT, {
       method: 'POST',
@@ -113,9 +113,10 @@ async function getTomorrowSchedule(apiKey: string): Promise<any[]> {
 
     // Match date patterns: "May 10" or "2026-05-10" or "10/5/2026"
     const dateStr = dateCol.toString()
+    const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
     const isMatch = 
       dateStr.includes(tomorrowDay) && 
-      (dateStr.includes(tomorrowMonth) || dateStr.includes(tomorrow.getMonthName?.() || ''))
+      (dateStr.includes(tomorrowMonth) || dateStr.includes(monthNames[tomorrow.getMonth()]))
     
     if (isMatch) {
       scheduleRows.push({
