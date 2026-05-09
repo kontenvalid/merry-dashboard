@@ -18,6 +18,7 @@ import {
   Bug,
   LogOut,
   ChevronDown,
+  Calendar,
 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 
@@ -29,6 +30,7 @@ const navItems = [
 ];
 
 const adminItems = [
+  { href: "/schedule", label: "Schedule", icon: Calendar },
   { href: "/users", label: "User Management", icon: Users },
   { href: "/roles", label: "Role Management", icon: Shield },
   { href: "/settings", label: "Settings", icon: Settings },

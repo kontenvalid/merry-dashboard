@@ -6,6 +6,73 @@ import prisma from '@/lib/prisma'
 
 // Schedule folder ID - will be created/used
 const SCHEDULE_FOLDER_NAME = 'Schedule'
+const PARENT_FOLDER_ID = '1iTAz2sMPMJro0svMXcrDrGJGZAu8ixCF'
+
+export async function GET() {
+  try {
+    const session = await getServerSession(authOptions)
+    
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    // Check admin role
+    const userEmail = session.user.email
+    const isAdmin = userEmail.toLowerCase() === 'kontenval.id@gmail.com'
+    
+    if (!isAdmin) {
+      return NextResponse.json({ error: 'Admin only' }, { status: 403 })
+    }
+
+    const userId = session.user.id || session.user.email
+    const apiKey = await getApiKey(userId, 'composio')
+    
+    if (!apiKey) {
+      return NextResponse.json({ error: 'Composio API key not found' }, { status: 400 })
+    }
+
+    // Find Schedule folder
+    const folderId = await findScheduleFolder(apiKey)
+    
+    if (!folderId) {
+      return NextResponse.json({
+        success: true,
+        connected: false,
+        folder: null,
+        spreadsheet: null,
+        message: 'Schedule folder not found'
+      })
+    }
+
+    // Get all files in Schedule folder
+    const files = await listFilesInFolder(apiKey, folderId)
+    
+    // Find spreadsheet
+    const spreadsheet = files.find(f => 
+      f.name === 'Carousel 2026' && f.mimeType?.includes('spreadsheet')
+    )
+
+    return NextResponse.json({
+      success: true,
+      connected: true,
+      folder: {
+        id: folderId,
+        name: 'Schedule',
+        link: `https://drive.google.com/drive/folders/${folderId}`
+      },
+      spreadsheet: spreadsheet ? {
+        id: spreadsheet.id,
+        name: spreadsheet.name,
+        link: spreadsheet.webViewLink || `https://docs.google.com/spreadsheets/d/${spreadsheet.id}`
+      } : null,
+      filesCount: files.length
+    })
+
+  } catch (error) {
+    console.error('Get schedule status error:', error)
+    return NextResponse.json({ error: 'Failed to get schedule status' }, { status: 500 })
+  }
+}
 
 export async function DELETE() {
   try {
