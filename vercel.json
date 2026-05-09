@@ -4,6 +4,14 @@
     {
       "path": "/api/cron/sync",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/daily-research",
+      "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/daily-carousel",
+      "schedule": "0 1 * * *"
     }
   ]
 }
