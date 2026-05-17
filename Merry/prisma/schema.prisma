@@ -1,0 +1,186 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User roles enum
+enum Role {
+  ADMIN
+  MEMBER
+}
+
+// Social platform enum
+enum Platform {
+  FACEBOOK
+  INSTAGRAM
+  YOUTUBE
+  META_ADS
+  TWITTER
+  TIKTOK
+}
+
+// Analytics record
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  role          Role      @default(MEMBER)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  accounts Account[]
+  sessions Session[]
+  socialAccounts SocialAccount[]
+
+  @@map("users")
+}
+
+// NextAuth - OAuth accounts
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+// NextAuth - Sessions
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+// Verification tokens
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+// Connected social media accounts
+model SocialAccount {
+  id           String    @id @default(cuid())
+  userId       String
+  platform     Platform
+  accountId    String    // Platform-specific ID
+  accountName  String?   // Username or page name
+  accessToken  String?   @db.Text
+  refreshToken String?   @db.Text
+  expiresAt    DateTime?
+  metadata     Json?     // Additional platform-specific data
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, platform, accountId])
+  @@map("social_accounts")
+}
+
+// Daily analytics data
+model Analytics {
+  id          String   @id @default(cuid())
+  platform    Platform
+  date        DateTime @db.Date
+  followers   Int      @default(0)
+  following   Int      @default(0)
+  posts       Int      @default(0)
+  engagement  Int      @default(0)
+  reach       Int      @default(0)
+  impressions Int      @default(0)
+  likes       Int      @default(0)
+  comments    Int      @default(0)
+  shares      Int      @default(0)
+  views       Int      @default(0)
+  watchTime   Int      @default(0) // in minutes
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([platform, date])
+  @@index([platform])
+  @@index([date])
+  @@map("analytics")
+}
+
+// Ad performance data
+model AdPerformance {
+  id           String   @id @default(cuid())
+  accountId    String   // Meta Ads account ID (act_xxxxxx)
+  campaignName String?
+  date         DateTime @db.Date
+  spend        Decimal  @db.Decimal(10, 2)
+  impressions  Int      @default(0)
+  clicks       Int      @default(0)
+  cpc          Decimal? @db.Decimal(10, 2)
+  cpm          Decimal? @db.Decimal(10, 2)
+  roas         Decimal? @db.Decimal(10, 2)
+  conversions  Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([accountId, date])
+  @@index([accountId])
+  @@map("ad_performance")
+}
+
+// Dashboard settings/preferences
+model DashboardSettings {
+  id           String   @id @default(cuid())
+  userId       String?
+  theme        String   @default("system") // light, dark, system
+  language     String   @default("en")
+  timezone     String   @default("Asia/Bangkok")
+  metaAdsData  String?  @db.Text // JSON string of Meta Ads summary
+  googleDriveData String? @db.Text // JSON string of Google Drive files
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("dashboard_settings")
+}
+
+// API Keys storage (encrypted)
+model ApiKey {
+  id        String   @id @default(cuid())
+  userId    String
+  service   String   // composio, meta_graph, etc
+  apiKey    String   @db.Text // Encrypted
+  metadata  Json?    // Additional info (expiry, scope, etc)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, service])
+  @@map("api_keys")
+}
