@@ -271,15 +271,16 @@ export default function DashboardPage() {
                       <stop offset="100%" stopColor="#10B981" stopOpacity={0.6} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-slate-200 dark:stroke-slate-700" vertical={false} />
-                  <XAxis dataKey="name" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                  <XAxis tick={{ fill: "var(--foreground)" }} dataKey="name" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fill: "var(--foreground)" }} tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
                   <Tooltip 
                     contentStyle={{ 
-                      backgroundColor: 'rgba(255, 255, 255, 0.95)', 
-                      border: 'none', 
+                      backgroundColor: 'var(--popover)', 
+                      color: 'var(--popover-foreground)', 
+                      border: '1px solid var(--border)', 
                       borderRadius: '12px', 
-                      boxShadow: '0 10px 40px rgba(0,0,0,0.1)' 
+                      boxShadow: '0 10px 40px rgba(0,0,0,0.15)' 
                     }} 
                     formatter={(value: any) => formatNumber(value)}
                   />
@@ -379,15 +380,16 @@ export default function DashboardPage() {
                       <stop offset="100%" stopColor="#93C5FD" stopOpacity={0.05} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-slate-200 dark:stroke-slate-700" vertical={false} />
-                  <XAxis dataKey="name" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                  <XAxis tick={{ fill: "var(--foreground)" }} dataKey="name" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fill: "var(--foreground)" }} tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
                   <Tooltip 
                     contentStyle={{ 
-                      backgroundColor: 'rgba(255, 255, 255, 0.95)', 
-                      border: 'none', 
+                      backgroundColor: 'var(--popover)', 
+                      color: 'var(--popover-foreground)', 
+                      border: '1px solid var(--border)', 
                       borderRadius: '12px', 
-                      boxShadow: '0 10px 40px rgba(0,0,0,0.1)' 
+                      boxShadow: '0 10px 40px rgba(0,0,0,0.15)' 
                     }} 
                     formatter={(value: any) => formatNumber(value)}
                   />
