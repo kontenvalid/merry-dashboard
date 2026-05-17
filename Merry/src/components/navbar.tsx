@@ -10,6 +10,7 @@ import { Badge } from "./ui/badge";
 import {
   LayoutDashboard,
   BarChart3,
+  DollarSign,
   Users,
   Shield,
   Settings,
@@ -22,6 +23,7 @@ import { useState, useRef, useEffect } from "react";
 const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
+  { href: "/ads", label: "Ads Manager", icon: DollarSign },
 ];
 
 const adminItems = [
