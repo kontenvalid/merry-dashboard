@@ -10,15 +10,12 @@ import { Badge } from "./ui/badge";
 import {
   LayoutDashboard,
   BarChart3,
-  DollarSign,
-  Package,
+
   Users,
   Shield,
   Settings,
   Bug,
-  LogOut,
-  ChevronDown,
-  Calendar,
+
 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 
@@ -26,11 +23,11 @@ const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/ads", label: "Ads Manager", icon: DollarSign },
-  { href: "/products", label: "Products", icon: Package },
+
 ];
 
 const adminItems = [
-  { href: "/schedule", label: "Schedule", icon: Calendar },
+
   { href: "/users", label: "User Management", icon: Users },
   { href: "/roles", label: "Role Management", icon: Shield },
   { href: "/settings", label: "Settings", icon: Settings },
