@@ -1,0 +1,6 @@
+{
+  "buildCommand": "cd Merry && npm run build",
+  "installCommand": "cd Merry && npm install",
+  "devCommand": "cd Merry && npm run dev",
+  "framework": "nextjs"
+}
