@@ -41,14 +41,14 @@ function useAnimatedValue(value: number, duration = 1000) {
   return displayValue;
 }
 
-// Modern glass card component
+// Modern glass card component - proper light/dark mode styling
 function GlassCard({ children, className = '', delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
   return (
     <div 
-      className={`relative overflow-hidden rounded-2xl bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/20 dark:border-slate-700/50 shadow-xl shadow-black/5 ${className}`}
+      className={`relative overflow-hidden rounded-2xl bg-white dark:bg-slate-900 backdrop-blur-xl border border-slate-200 dark:border-slate-700/50 shadow-lg dark:shadow-black/20 ${className}`}
       style={{ animationDelay: `${delay}ms` }}
     >
-      <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent dark:from-white/5 pointer-events-none" />
+      <div className="absolute inset-0 bg-gradient-to-br from-slate-100/50 dark:from-white/5 to-transparent pointer-events-none" />
       <div className="relative z-10 p-6">{children}</div>
     </div>
   );
@@ -204,7 +204,7 @@ export default function DashboardPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-slate-100 to-slate-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 p-6 space-y-6">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-6 space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="space-y-1">
@@ -271,15 +271,14 @@ export default function DashboardPage() {
                       <stop offset="100%" stopColor="#10B981" stopOpacity={0.6} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
                   <XAxis dataKey="name" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
                   <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: 'rgba(255, 255, 255, 0.95)', 
-                      border: 'none', 
+                    contentStyle={{ backgroundColor: 'var(--popover)', color: 'var(--popover-foreground)', 
+                      border: '1px solid var(--border)', 
                       borderRadius: '12px', 
-                      boxShadow: '0 10px 40px rgba(0,0,0,0.1)' 
+                      boxShadow: '0 10px 40px rgba(0,0,0,0.15)' 
                     }} 
                     formatter={(value: any) => formatNumber(value)}
                   />
@@ -320,11 +319,10 @@ export default function DashboardPage() {
                       ))}
                     </Pie>
                     <Tooltip 
-                      contentStyle={{ 
-                        backgroundColor: 'rgba(255, 255, 255, 0.95)', 
-                        border: 'none', 
+                      contentStyle={{ backgroundColor: 'var(--popover)', color: 'var(--popover-foreground)', 
+                        border: '1px solid var(--border)', 
                         borderRadius: '12px', 
-                        boxShadow: '0 10px 40px rgba(0,0,0,0.1)' 
+                        boxShadow: '0 10px 40px rgba(0,0,0,0.15)' 
                       }} 
                       formatter={(value: any) => formatNumber(value)}
                     />
@@ -379,15 +377,14 @@ export default function DashboardPage() {
                       <stop offset="100%" stopColor="#93C5FD" stopOpacity={0.05} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
                   <XAxis dataKey="name" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
                   <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: 'rgba(255, 255, 255, 0.95)', 
-                      border: 'none', 
+                    contentStyle={{ backgroundColor: 'var(--popover)', color: 'var(--popover-foreground)', 
+                      border: '1px solid var(--border)', 
                       borderRadius: '12px', 
-                      boxShadow: '0 10px 40px rgba(0,0,0,0.1)' 
+                      boxShadow: '0 10px 40px rgba(0,0,0,0.15)' 
                     }} 
                     formatter={(value: any) => formatNumber(value)}
                   />
