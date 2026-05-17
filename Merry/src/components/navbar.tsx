@@ -10,11 +10,12 @@ import { Badge } from "./ui/badge";
 import {
   LayoutDashboard,
   BarChart3,
-  DollarSign,
   Users,
   Shield,
   Settings,
   Bug,
+  LogOut,
+  ChevronDown,
 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 
