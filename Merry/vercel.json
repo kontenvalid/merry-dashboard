@@ -1,6 +1,17 @@
 {
-  "buildCommand": "cd Merry && npm run build",
-  "installCommand": "cd Merry && npm install",
-  "devCommand": "cd Merry && npm run dev",
-  "framework": "nextjs"
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "crons": [
+    {
+      "path": "/api/cron/sync",
+      "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/daily-research",
+      "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/daily-carousel",
+      "schedule": "0 1 * * *"
+    }
+  ]
 }
