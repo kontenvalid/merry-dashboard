@@ -20,6 +20,8 @@ import {
 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 
+// 2024-05-18: Removed Products and Schedule menu items
+
 const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
