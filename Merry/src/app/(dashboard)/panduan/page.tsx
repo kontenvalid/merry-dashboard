@@ -86,67 +86,37 @@ const guides = [
     items: [
       {
         title: "Composio Connection",
-        description: "Cara menghubungkan Composio untuk social media data",
+        description: "Cara menghubungkan Composio untuk social media data via MCP",
         content: `
-          <h3>Setup Composio</h3>
-          <p>Composio digunakan untuk mengambil data dari Facebook, Instagram, YouTube, Google Drive, dan Meta Ads.</p>
+          <h3>Setup Composio (WAJIB)</h3>
+          <p>Composio digunakan untuk mengambil data dari Facebook, Instagram, YouTube, Google Drive, dan Meta Ads via <strong>MCP (Model Context Protocol)</strong>.</p>
           
-          <h4>Yang WAJIB di-setup:</h4>
+          <h4>Yang perlu dilakukan:</h4>
           <ol>
             <li>Buka <a href="https://app.composio.dev" target="_blank">app.composio.dev</a></li>
-            <li>Daftar menggunakan email atau Google account</li>
+            <li>Daftar menggunakan Google account</li>
             <li>Klik <strong>"Add New Connection"</strong></li>
-            <li>Hubungkan platform berikut:</li>
+            <li>Hubungkan platform: Instagram, Facebook, YouTube, Meta Ads</li>
           </ol>
           
-          <h5>Instagram (WAJIB):</h5>
+          <h4>Dapatkan API Key:</h4>
+          <ol>
+            <li>Buka <a href="https://app.composio.dev/settings/api-keys" target="_blank">Settings → API Keys</a></li>
+            <li>Copy <strong>X Consumer API Key</strong></li>
+            <li>NOTE: Nama field-nya memang "X Consumer API Key" tapi ini <u>bukan untuk Twitter</u> - ini API key untuk Composio MCP!</li>
+            <li>Paste di <strong>Settings page</strong> dashboard ini</li>
+          </ol>
+          
+          <h4>Yang TIDAK tersedia di Composio:</h4>
           <ul>
-            <li>Pilih "Instagram" dari list apps</li>
-            <li>Login dengan akun yang punya business/page</li>
-            <li>IG harus terhubung dengan FB Page</li>
+            <li><strong>X (Twitter) - Tidak tersedia di Composio</strong></li>
+            <li><strong>TikTok - Gunakan Zernio API</strong></li>
           </ul>
           
-          <h5>Facebook (WAJIB):</h5>
+          <h4>Catatan:</h4>
           <ul>
-            <li>Pilih "Facebook" dari list apps</li>
-            <li>Login dengan Facebook account</li>
-            <li>Pilih halaman bisnis (Page) yang ingin di-monitor</li>
-            <li>Berikan permissions yang diminta</li>
-          </ul>
-          
-          <h5>YouTube (WAJIB):</h5>
-          <ul>
-            <li>Pilih "YouTube" dari list apps</li>
-            <li>Login dengan Google account YouTube</li>
-            <li>Berikan akses ke channel YouTube</li>
-          </ul>
-          
-          <h5>Google Drive (OPSIONAL):</h5>
-          <ul>
-            <li>Pilih "Google Drive" dari list apps</li>
-            <li>Login dengan Google account</li>
-            <li>Berikan akses read-only</li>
-          </ul>
-          
-          <h5>Meta Ads (WAJIB):</h5>
-          <ul>
-            <li>Pilih "Meta Ads" dari list apps</li>
-            <li>Login dengan Facebook business account</li>
-            <li>Berikan akses ke ad accounts</li>
-          </ul>
-          
-          <h4>Yang TIDAK perlu di-setup:</h4>
-          <ul>
-            <li><strong>X (Twitter) - TIDAK perluan Composio</strong></li>
-            <li><strong>TikTok - Tidak tersedia di Composio, pakai Zernio</strong></li>
-          </ul>
-          
-          <h4>Catatan Penting:</h4>
-          <ul>
-            <li><strong>Composio gratis</strong> dengan limits tertentu</li>
-            <li>Untuk production, mungkin perlu upgrade plan</li>
-            <li>Pastikan permissions sudah benar agar data bisa di-fetch</li>
-            <li>Data dari Composio digunakan untuk FB, IG, YouTube, GDrive, Meta Ads stats</li>
+            <li>Composio <strong>gratis</strong> dengan limits tertentu</li>
+            <li>Data dari Composio: FB, IG, YouTube, GDrive, Meta Ads</li>
           </ul>
         `
       },

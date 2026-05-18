@@ -156,7 +156,7 @@ export default function SettingsPage() {
                 Composio 
                 <span className="text-xs bg-white/20 px-2 py-0.5 rounded-full">WAJIB</span>
               </h3>
-              <p className="text-sm text-white/80">Gratis - Koneksi social media</p>
+              <p className="text-sm text-white/80">Gratis - Koneksi social media via MCP</p>
             </div>
           </div>
 
@@ -211,14 +211,40 @@ export default function SettingsPage() {
             </div>
           </div>
 
+          {/* COMPOSIO API KEY INPUT - untuk konek via MCP */}
+          <div className="mt-4 p-4 bg-white/10 rounded-xl space-y-3">
+            <p className="text-sm font-medium">Composio API Key (MCP):</p>
+            <p className="text-xs text-white/70">
+              Ini adalah <strong>X Consumer API Key</strong> dari Composio - digunakan untuk koneksi via MCP.
+              Bukan untuk Twitter! Buka <a href="https://app.composio.dev/settings/api-keys" target="_blank" className="underline hover:text-white">Composio Settings</a> untuk dapat API key.
+            </p>
+            <div className="relative">
+              <input
+                type={showKeys.x_api_key ? "text" : "password"}
+                value={apiKeys.x_api_key}
+                onChange={(e) => setApiKeys({ ...apiKeys, x_api_key: e.target.value })}
+                placeholder="Masukkan Composio API Key (X Consumer API Key)..."
+                className="w-full p-3 pr-12 rounded-lg border border-white/20 bg-white/10 text-white placeholder:text-white/50 font-mono text-sm"
+              />
+              <button
+                type="button"
+                onClick={() => toggleShowKey("x_api_key")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-white/70 hover:text-white"
+              >
+                {showKeys.x_api_key ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              </button>
+            </div>
+          </div>
+
+
           <div className="mt-4 p-4 bg-white/10 rounded-xl">
             <p className="text-sm font-medium mb-2">Cara Setup:</p>
             <ol className="text-sm space-y-1 text-white/90">
               <li>1. Buka <a href="https://app.composio.dev" target="_blank" className="underline font-medium hover:text-white">app.composio.dev</a></li>
               <li>2. Daftar / Login dengan Google account</li>
-              <li>3. Klik "Add New Connection"</li>
-              <li>4. Pilih platform satu per satu (Instagram, Facebook, YouTube, GDrive, Meta Ads)</li>
-              <li>5. Berikan permissions yang diminta</li>
+              <li>3. Klik "Add New Connection" - pilih platform yang ingin dihubungkan</li>
+              <li>4. Buka Settings → API Keys - copy <strong>X Consumer API Key</strong></li>
+              <li>5. Paste di input field di atas</li>
             </ol>
           </div>
 
