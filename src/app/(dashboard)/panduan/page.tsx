@@ -3,7 +3,7 @@
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { BookOpen, Shield, Code, Link2, Database, CheckCircle } from "lucide-react";
+import { BookOpen, Shield, Code } from "lucide-react";
 
 const guides = [
   {
@@ -300,7 +300,7 @@ export default function PanduanPage() {
 
               <div className="space-y-2">
                 {category.items.map((item, index) => {
-                  const itemId = `${category.category}-${index}`;
+                  const itemId = category.category + "-" + index;
                   const isExpanded = expandedItem === itemId;
 
                   return (
@@ -313,20 +313,28 @@ export default function PanduanPage() {
                         className="w-full flex items-center justify-between p-4 text-left hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
                       >
                         <div className="flex items-center gap-3">
-                          <div className={\`w-2 h-2 rounded-full \${isExpanded ? 'bg-blue-500' : 'bg-slate-300'}\`} />
+                          <div className={"w-2 h-2 rounded-full " + (isExpanded ? "bg-blue-500" : "bg-slate-300")} />
                           <div>
                             <h3 className="font-medium">{item.title}</h3>
                             <p className="text-sm text-muted-foreground">{item.description}</p>
                           </div>
                         </div>
-                        <svg className={\`w-5 h-5 text-slate-400 transition-transform \${isExpanded ? 'rotate-180' : ''}\`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <svg 
+                          className={"w-5 h-5 text-slate-400 transition-transform " + (isExpanded ? "rotate-180" : "")} 
+                          fill="none" 
+                          viewBox="0 0 24 24" 
+                          stroke="currentColor"
+                        >
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                         </svg>
                       </button>
 
                       {isExpanded && (
                         <div className="px-4 pb-4 border-t border-slate-100 dark:border-slate-800">
-                          <div className="prose prose-sm dark:prose-invert max-w-none pt-4 [&_a]:text-blue-600 [&_a]:underline [&_code]:bg-slate-100 dark:[&_code]:bg-slate-800 [&_code]:px-1 [&_code]:rounded [&_h3]:text-lg [&_h3]:font-semibold [&_h4]:text-base [&_h4]:font-medium [&_h5]:text-sm [&_h5]:font-semibold [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:list-disc [&_ul]:pl-5 [&_li]:my-1" dangerouslySetInnerHTML={{ __html: item.content }} />
+                          <div 
+                            className="prose prose-sm dark:prose-invert max-w-none pt-4 [&_a]:text-blue-600 [&_a]:underline [&_code]:bg-slate-100 dark:[&_code]:bg-slate-800 [&_code]:px-1 [&_code]:rounded [&_h3]:text-lg [&_h3]:font-semibold [&_h4]:text-base [&_h4]:font-medium [&_h5]:text-sm [&_h5]:font-semibold [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:list-disc [&_ul]:pl-5 [&_li]:my-1" 
+                            dangerouslySetInnerHTML={{ __html: item.content }} 
+                          />
                         </div>
                       )}
                     </div>
