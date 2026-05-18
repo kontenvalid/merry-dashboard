@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "projectId": "merry-dashboard",
+  "name": "merry-dashboard",
   "cleanUrls": true,
   "crons": [
     {
