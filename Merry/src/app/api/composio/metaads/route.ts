@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 import { getApiKey } from '@/lib/api-key-store'
 
 // Meta Ads accounts - use the account that the token has access to
@@ -32,8 +34,37 @@ function formatMoney(amount: number, currency: string): string {
 
 export async function GET() {
   try {
-    // Get Meta Graph API token from database
-    const accessToken = await getApiKey('cmopvdcrn00004e1xbsct0hbq', 'meta_graph')
+    // Get session to identify user
+    const session = await getServerSession(authOptions)
+    
+    if (!session?.user?.email) {
+      return NextResponse.json({ 
+        success: false, 
+        error: 'Unauthorized - Please login first',
+        currency: null,
+        currencySymbol: null
+      }, { status: 401 })
+    }
+
+    // Get user from database to get the userId
+    const { default: prisma } = await import('@/lib/prisma')
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email }
+    })
+
+    if (!user) {
+      return NextResponse.json({ 
+        success: false, 
+        error: 'User not found',
+        currency: null,
+        currencySymbol: null
+      }, { status: 404 })
+    }
+
+    const userId = user.id
+
+    // Get Meta Graph API token from database for this user
+    const accessToken = await getApiKey(userId, 'meta_graph')
 
     if (!accessToken) {
       return NextResponse.json({
