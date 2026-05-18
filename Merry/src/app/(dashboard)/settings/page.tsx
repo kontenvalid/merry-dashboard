@@ -412,7 +412,7 @@ export default function SettingsPage() {
           <div className="text-sm space-y-2">
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-purple-500" />
-              <span><strong>Composio (Gratis):</strong> Instagram, Facebook, YouTube, GDrive, Meta Ads</span>
+              <span><strong>Composio MCP (Gratis):</strong> Instagram, Facebook, YouTube, GDrive, Meta Ads</span>
             </div>
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-pink-500" />
@@ -421,10 +421,6 @@ export default function SettingsPage() {
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-slate-500" />
               <span><strong>Meta Token (Opsional):</strong> Backup untuk Meta Ads</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-black" />
-              <span><strong>X API (Opsional):</strong> Twitter/X Analytics</span>
             </div>
           </div>
           <p className="text-sm text-muted-foreground mt-3">
