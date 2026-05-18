@@ -10,13 +10,11 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// User roles enum
 enum Role {
   ADMIN
   MEMBER
 }
 
-// Social platform enum
 enum Platform {
   FACEBOOK
   INSTAGRAM
@@ -26,7 +24,6 @@ enum Platform {
   TIKTOK
 }
 
-// Analytics record
 model User {
   id            String    @id @default(cuid())
   name          String?
@@ -37,15 +34,15 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  // Relations
   accounts Account[]
   sessions Session[]
   socialAccounts SocialAccount[]
+  dashboardSettings DashboardSettings?
+  apiKeys ApiKey[]
 
   @@map("users")
 }
 
-// NextAuth - OAuth accounts
 model Account {
   id                String  @id @default(cuid())
   userId            String
@@ -66,7 +63,6 @@ model Account {
   @@map("accounts")
 }
 
-// NextAuth - Sessions
 model Session {
   id           String   @id @default(cuid())
   sessionToken String   @unique
@@ -78,7 +74,6 @@ model Session {
   @@map("sessions")
 }
 
-// Verification tokens
 model VerificationToken {
   identifier String
   token      String   @unique
@@ -88,17 +83,16 @@ model VerificationToken {
   @@map("verification_tokens")
 }
 
-// Connected social media accounts
 model SocialAccount {
   id           String    @id @default(cuid())
   userId       String
   platform     Platform
-  accountId    String    // Platform-specific ID
-  accountName  String?   // Username or page name
+  accountId    String
+  accountName  String?
   accessToken  String?   @db.Text
   refreshToken String?   @db.Text
   expiresAt    DateTime?
-  metadata     Json?     // Additional platform-specific data
+  metadata     Json?
   isActive     Boolean   @default(true)
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
@@ -109,7 +103,6 @@ model SocialAccount {
   @@map("social_accounts")
 }
 
-// Daily analytics data
 model Analytics {
   id          String   @id @default(cuid())
   platform    Platform
@@ -124,7 +117,7 @@ model Analytics {
   comments    Int      @default(0)
   shares      Int      @default(0)
   views       Int      @default(0)
-  watchTime   Int      @default(0) // in minutes
+  watchTime   Int      @default(0)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -134,10 +127,9 @@ model Analytics {
   @@map("analytics")
 }
 
-// Ad performance data
 model AdPerformance {
   id           String   @id @default(cuid())
-  accountId    String   // Meta Ads account ID (act_xxxxxx)
+  accountId    String
   campaignName String?
   date         DateTime @db.Date
   spend        Decimal  @db.Decimal(10, 2)
@@ -155,31 +147,35 @@ model AdPerformance {
   @@map("ad_performance")
 }
 
-// Dashboard settings/preferences
+// Dashboard settings - PER USER (userId is unique)
 model DashboardSettings {
-  id           String   @id @default(cuid())
-  userId       String?
-  theme        String   @default("system") // light, dark, system
-  language     String   @default("en")
-  timezone     String   @default("Asia/Bangkok")
-  metaAdsData  String?  @db.Text // JSON string of Meta Ads summary
-  googleDriveData String? @db.Text // JSON string of Google Drive files
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  theme           String   @default("system")
+  language        String   @default("en")
+  timezone        String   @default("Asia/Bangkok")
+  metaAdsData     String?  @db.Text
+  googleDriveData  String?  @db.Text
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("dashboard_settings")
 }
 
-// API Keys storage (encrypted)
+// API Keys - PER USER
 model ApiKey {
   id        String   @id @default(cuid())
   userId    String
-  service   String   // composio, meta_graph, etc
-  apiKey    String   @db.Text // Encrypted
-  metadata  Json?    // Additional info (expiry, scope, etc)
+  service   String
+  apiKey    String   @db.Text
+  metadata  Json?
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, service])
   @@map("api_keys")
