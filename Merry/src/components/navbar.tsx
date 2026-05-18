@@ -24,13 +24,12 @@ const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/ads", label: "Ads Manager", icon: DollarSign },
+  { href: "/settings", label: "Settings", icon: Settings },
 ];
 
 const adminItems = [
-
   { href: "/users", label: "User Management", icon: Users },
   { href: "/roles", label: "Role Management", icon: Shield },
-  { href: "/settings", label: "Settings", icon: Settings },
   { href: "/debug", label: "Debug", icon: Bug },
 ];
 

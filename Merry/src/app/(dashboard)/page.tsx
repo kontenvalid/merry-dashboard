@@ -432,22 +432,18 @@ export default function DashboardPage() {
       {/* Quick Actions */}
       <div className="bg-card rounded-xl border border-border p-6">
         <h3 className="text-lg font-semibold mb-4">Quick Actions</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <a href="/analytics" className="p-4 rounded-lg border hover:bg-accent transition-colors text-left">
             <span className="text-2xl mb-2 block">📊</span>
-            <span className="font-medium">View Analytics</span>
-          </a>
-          <a href="/social" className="p-4 rounded-lg border hover:bg-accent transition-colors text-left">
-            <span className="text-2xl mb-2 block">📱</span>
-            <span className="font-medium">Social Media</span>
+            <span className="font-medium">Analytics</span>
           </a>
           <a href="/ads" className="p-4 rounded-lg border hover:bg-accent transition-colors text-left">
             <span className="text-2xl mb-2 block">💰</span>
-            <span className="font-medium">Ad Manager</span>
+            <span className="font-medium">Ads Manager</span>
           </a>
-          <a href="/products" className="p-4 rounded-lg border hover:bg-accent transition-colors text-left">
-            <span className="text-2xl mb-2 block">📦</span>
-            <span className="font-medium">Products</span>
+          <a href="/settings" className="p-4 rounded-lg border hover:bg-accent transition-colors text-left">
+            <span className="text-2xl mb-2 block">⚙️</span>
+            <span className="font-medium">Settings</span>
           </a>
         </div>
       </div>
