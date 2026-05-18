@@ -1,31 +1,64 @@
 import { NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 import prisma from '@/lib/prisma'
 
-// Simple test - just read analytics from DB
+// GET - Debug/check database state for current user
 export async function GET() {
   try {
-    const userId = 'kontenval.id@gmail.com'
+    // Get session to identify user
+    const session = await getServerSession(authOptions)
+    
+    if (!session?.user?.email) {
+      return NextResponse.json({ 
+        success: false, 
+        error: 'Unauthorized - Please login first' 
+      }, { status: 401 })
+    }
+
+    // Get user from database
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email }
+    })
+
+    if (!user) {
+      return NextResponse.json({ 
+        success: false, 
+        error: 'User not found' 
+      }, { status: 404 })
+    }
+
+    const userId = user.id
     const today = new Date()
     today.setHours(0, 0, 0, 0)
 
-    // Check analytics table
-    const analyticsCount = await prisma.analytics.count()
+    // Check analytics table for this user
+    const analyticsCount = await prisma.analytics.count({
+      where: { userId: userId }
+    })
     const analyticsRecords = await prisma.analytics.findMany({
-      where: { date: today },
+      where: { 
+        userId: userId,
+        date: today 
+      },
       orderBy: { updatedAt: 'desc' }
     })
 
-    // Check settings table
+    // Check settings table for this user
     const settings = await prisma.dashboardSettings.findUnique({
-      where: { id: userId }
+      where: { userId: userId }
     })
 
-    // Check api keys table
-    const apiKeysCount = await prisma.apiKey.count()
+    // Check api keys table for this user
+    const apiKeys = await prisma.apiKey.findMany({
+      where: { userId: userId }
+    })
 
     return NextResponse.json({
       success: true,
       debug: true,
+      userId: userId,
+      userEmail: user.email,
       timestamp: new Date().toISOString(),
       analytics: {
         totalCount: analyticsCount,
@@ -44,7 +77,11 @@ export async function GET() {
         hasMetaAdsData: !!settings?.metaAdsData,
         hasGoogleDriveData: !!settings?.googleDriveData
       },
-      apiKeysCount
+      apiKeys: apiKeys.map(k => ({
+        service: k.service,
+        isActive: k.isActive,
+        createdAt: k.createdAt
+      }))
     })
   } catch (error: any) {
     return NextResponse.json({

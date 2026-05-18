@@ -1,9 +1,12 @@
 /**
  * Improved Sync API - Uses Composio MCP Library
  * Fetches data from all platforms via Composio and stores to database
+ * PER USER - uses session to identify user
  */
 
 import { NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 import prisma from '@/lib/prisma'
 import { getApiKey } from '@/lib/api-key-store'
 import { fetchAllSocialData, fetchGoogleDriveFiles, testMcpConnection } from '@/lib/composio-mcp'
@@ -15,7 +18,15 @@ const META_ADS_ACCOUNTS = [
 ]
 const META_API_BASE = 'https://graph.facebook.com/v21.0'
 
-export async function GET() {
+// Get user ID from email
+async function getUserId(email: string): Promise<string> {
+  const user = await prisma.user.findUnique({
+    where: { email }
+  })
+  return user?.id || email
+}
+
+export async function GET(request: Request) {
   const startTime = Date.now()
   const result: any = { 
     success: false, 
@@ -27,8 +38,32 @@ export async function GET() {
   }
 
   try {
-    // Get Composio API key from database
-    const userId = 'kontenval.id@gmail.com'
+    // Get session to identify user
+    const session = await getServerSession(authOptions)
+    
+    if (!session?.user?.email) {
+      return NextResponse.json({ 
+        success: false, 
+        error: 'Unauthorized - Please login first' 
+      }, { status: 401 })
+    }
+
+    // Get user from database
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email }
+    })
+
+    if (!user) {
+      return NextResponse.json({ 
+        success: false, 
+        error: 'User not found' 
+      }, { status: 404 })
+    }
+
+    const userId = user.id
+    console.log('🔄 Sync for user:', user.email, '(ID:', userId, ')')
+
+    // Get Composio API key for this user
     const composioKey = await getApiKey(userId, 'composio')
     
     if (!composioKey) {
@@ -39,7 +74,7 @@ export async function GET() {
       }, { status: 400 })
     }
 
-    console.log('🔑 Composio API key found, testing connection...')
+    console.log('🔑 Composio API key found for', user.email, ', testing connection...')
     
     // Test MCP connection
     const connectionTest = await testMcpConnection(composioKey)
@@ -49,6 +84,10 @@ export async function GET() {
       result.errors.push({ service: 'Composio', error: connectionTest.error || 'Connection failed' })
     }
 
+    // Use UTC date for consistency
+    const today = new Date()
+    const utcDate = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0, 0))
+
     // Fetch Facebook data
     console.log('📘 Fetching Facebook data...')
     try {
@@ -56,9 +95,14 @@ export async function GET() {
       const fbRecord = fbData.find(d => d.platform === 'FACEBOOK')
       
       if (fbRecord) {
-        const today = new Date(); today.setHours(0, 0, 0, 0)
         await prisma.analytics.upsert({
-          where: { platform_date: { platform: 'FACEBOOK', date: today } },
+          where: { 
+            userId_platform_date: { 
+              userId: userId, 
+              platform: 'FACEBOOK', 
+              date: utcDate 
+            }
+          },
           update: {
             followers: fbRecord.followers,
             posts: fbRecord.posts,
@@ -70,8 +114,9 @@ export async function GET() {
             impressions: fbRecord.impressions
           },
           create: {
+            userId: userId,
             platform: 'FACEBOOK',
-            date: today,
+            date: utcDate,
             followers: fbRecord.followers,
             posts: fbRecord.posts,
             likes: fbRecord.likes,
@@ -97,9 +142,14 @@ export async function GET() {
       const igRecord = igData.find(d => d.platform === 'INSTAGRAM')
       
       if (igRecord) {
-        const today = new Date(); today.setHours(0, 0, 0, 0)
         await prisma.analytics.upsert({
-          where: { platform_date: { platform: 'INSTAGRAM', date: today } },
+          where: { 
+            userId_platform_date: { 
+              userId: userId, 
+              platform: 'INSTAGRAM', 
+              date: utcDate 
+            }
+          },
           update: {
             followers: igRecord.followers,
             posts: igRecord.posts,
@@ -111,8 +161,9 @@ export async function GET() {
             views: igRecord.views
           },
           create: {
+            userId: userId,
             platform: 'INSTAGRAM',
-            date: today,
+            date: utcDate,
             followers: igRecord.followers,
             posts: igRecord.posts,
             likes: igRecord.likes,
@@ -138,9 +189,14 @@ export async function GET() {
       const ytRecord = ytData.find(d => d.platform === 'YOUTUBE')
       
       if (ytRecord) {
-        const today = new Date(); today.setHours(0, 0, 0, 0)
         await prisma.analytics.upsert({
-          where: { platform_date: { platform: 'YOUTUBE', date: today } },
+          where: { 
+            userId_platform_date: { 
+              userId: userId, 
+              platform: 'YOUTUBE', 
+              date: utcDate 
+            }
+          },
           update: {
             followers: ytRecord.followers,
             posts: ytRecord.posts,
@@ -152,8 +208,9 @@ export async function GET() {
             watchTime: ytRecord.watchTime
           },
           create: {
+            userId: userId,
             platform: 'YOUTUBE',
-            date: today,
+            date: utcDate,
             followers: ytRecord.followers,
             posts: ytRecord.posts,
             likes: ytRecord.likes,
@@ -178,9 +235,9 @@ export async function GET() {
       const gdriveResult = await fetchGoogleDriveFiles(composioKey)
       if (gdriveResult.success) {
         await prisma.dashboardSettings.upsert({
-          where: { id: 'gdrive' },
+          where: { userId: userId },
           update: { googleDriveData: JSON.stringify({ fileCount: gdriveResult.files.length, files: gdriveResult.files.slice(0, 20) }) },
-          create: { id: 'gdrive', userId: userId, googleDriveData: JSON.stringify({ fileCount: gdriveResult.files.length, files: gdriveResult.files.slice(0, 20) }) }
+          create: { userId: userId, googleDriveData: JSON.stringify({ fileCount: gdriveResult.files.length, files: gdriveResult.files.slice(0, 20) }) }
         })
         result.platforms.push({ platform: 'Google Drive', success: true, fileCount: gdriveResult.files.length })
         result.details.googleDrive = { fileCount: gdriveResult.files.length }
@@ -216,9 +273,9 @@ export async function GET() {
         }
 
         await prisma.dashboardSettings.upsert({
-          where: { id: 'metaAds' },
+          where: { userId: userId },
           update: { metaAdsData: JSON.stringify({ campaigns, totalSpend }) },
-          create: { id: 'metaAds', userId: userId, metaAdsData: JSON.stringify({ campaigns, totalSpend }) }
+          create: { userId: userId, metaAdsData: JSON.stringify({ campaigns, totalSpend }) }
         })
 
         result.platforms.push({ platform: 'Meta Ads', success: true, campaigns: campaigns.length, totalSpend })
@@ -233,8 +290,10 @@ export async function GET() {
 
     result.success = result.platforms.length > 0
     result.durationMs = Date.now() - startTime
+    result.userId = userId
+    result.userEmail = user.email
 
-    console.log('\n=== Sync Result ===')
+    console.log('\n=== Sync Result for', user.email, '===')
     console.log(JSON.stringify(result, null, 2))
 
     return NextResponse.json(result)

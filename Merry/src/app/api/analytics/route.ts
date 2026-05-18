@@ -2,7 +2,14 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import prisma from '@/lib/prisma'
-import { getApiKey } from '@/lib/api-key-store'
+
+// GET - Fetch current user ID helper
+async function getCurrentUserId(email: string): Promise<string> {
+  const user = await prisma.user.findUnique({
+    where: { email }
+  })
+  return user?.id || email
+}
 
 export async function POST(request: Request) {
   try {
@@ -12,12 +19,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const userId = session.user.id || session.user.email
-    const apiKey = await getApiKey(userId, 'composio')
-
-    if (!apiKey) {
-      return NextResponse.json({ error: 'Composio API key not configured. Please connect via Settings.' }, { status: 400 })
-    }
+    const userId = await getCurrentUserId(session.user.email)
 
     // Fetch current data from Composio
     const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/composio/overview`, {
@@ -42,7 +44,8 @@ export async function POST(request: Request) {
     if (data?.facebook) {
       await prisma.analytics.upsert({
         where: {
-          platform_date: {
+          userId_platform_date: {
+            userId: userId,
             platform: 'FACEBOOK',
             date: today
           }
@@ -56,6 +59,7 @@ export async function POST(request: Request) {
                      (data.facebook.engagement?.shares || 0)
         },
         create: {
+          userId: userId,
           platform: 'FACEBOOK',
           date: today,
           followers: data.facebook.followers || 0,
@@ -73,7 +77,8 @@ export async function POST(request: Request) {
     if (data?.instagram) {
       await prisma.analytics.upsert({
         where: {
-          platform_date: {
+          userId_platform_date: {
+            userId: userId,
             platform: 'INSTAGRAM',
             date: today
           }
@@ -86,6 +91,7 @@ export async function POST(request: Request) {
                      (data.instagram.engagement?.comments || 0)
         },
         create: {
+          userId: userId,
           platform: 'INSTAGRAM',
           date: today,
           followers: data.instagram.followers_count || 0,
@@ -102,7 +108,8 @@ export async function POST(request: Request) {
     if (data?.youtube) {
       await prisma.analytics.upsert({
         where: {
-          platform_date: {
+          userId_platform_date: {
+            userId: userId,
             platform: 'YOUTUBE',
             date: today
           }
@@ -115,6 +122,7 @@ export async function POST(request: Request) {
           watchTime: data.youtube.stats?.watchTimeMinutes || 0
         },
         create: {
+          userId: userId,
           platform: 'YOUTUBE',
           date: today,
           followers: data.youtube.subscribers || 0,
@@ -150,6 +158,8 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const userId = await getCurrentUserId(session.user.email)
+    
     const { searchParams } = new URL(request.url)
     const days = parseInt(searchParams.get('days') || '30')
     const platform = searchParams.get('platform') || 'all'
@@ -160,6 +170,7 @@ export async function GET(request: Request) {
 
     // Build where clause with proper typing
     const whereClause: any = {
+      userId: userId,
       date: {
         gte: startDate
       }

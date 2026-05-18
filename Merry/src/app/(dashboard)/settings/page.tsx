@@ -3,27 +3,13 @@
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Loader2, Save, User, Palette, Bell, Shield, Check } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Loader2, Save, Key, Link2, Shield, Check, Eye, EyeOff, AlertCircle, CheckCircle2, Zap, Globe } from "lucide-react";
 
-interface UserSettings {
-  theme: string;
-  language: string;
-  timezone: string;
-  notifications: boolean;
+interface ApiKeys {
+  meta_token: string;
+  x_api_key: string;
+  zernio_api_key: string;
 }
-
-const TIMEZONES = [
-  { value: "Asia/Jakarta", label: "Indonesia (WIB) - UTC+7" },
-  { value: "Asia/Makassar", label: "Indonesia (WITA) - UTC+8" },
-  { value: "Asia/Jayapura", label: "Indonesia (WIT) - UTC+9" },
-  { value: "UTC", label: "UTC" },
-];
-
-const LANGUAGES = [
-  { value: "en", label: "English" },
-  { value: "id", label: "Bahasa Indonesia" },
-];
 
 export default function SettingsPage() {
   const { data: session, status } = useSession();
@@ -31,64 +17,69 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [settings, setSettings] = useState<UserSettings>({
-    theme: "system",
-    language: "en",
-    timezone: "Asia/Jakarta",
-    notifications: true,
+  
+  const [apiKeys, setApiKeys] = useState<ApiKeys>({
+    meta_token: "",
+    x_api_key: "",
+    zernio_api_key: "",
+  });
+  
+  const [showKeys, setShowKeys] = useState<Record<string, boolean>>({
+    meta_token: false,
+    x_api_key: false,
+    zernio_api_key: false,
   });
 
   const isAdmin = session?.user?.email === "kontenval.id@gmail.com";
 
   useEffect(() => {
-    const fetchSettings = async () => {
+    const fetchApiKeys = async () => {
       try {
-        const res = await fetch("/api/user/settings");
+        const res = await fetch("/api/user/api-keys");
         if (res.ok) {
           const data = await res.json();
-          if (data.settings) {
-            setSettings({
-              theme: data.settings.theme || "system",
-              language: data.settings.language || "en",
-              timezone: data.settings.timezone || "Asia/Jakarta",
-              notifications: data.settings.notifications ?? true,
+          if (data.keys) {
+            setApiKeys({
+              meta_token: data.keys.meta_token || "",
+              x_api_key: data.keys.x_api_key || "",
+              zernio_api_key: data.keys.zernio_api_key || "",
             });
           }
         }
       } catch (error) {
-        console.error("Failed to fetch settings:", error);
+        console.error("Failed to fetch API keys:", error);
       } finally {
         setLoading(false);
       }
     };
 
     if (session) {
-      fetchSettings();
+      fetchApiKeys();
     }
   }, [session]);
 
-  const saveSettings = async () => {
+  const saveApiKeys = async () => {
     setSaving(true);
     try {
-      const res = await fetch("/api/user/settings", {
+      const res = await fetch("/api/user/api-keys", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(settings),
+        body: JSON.stringify(apiKeys),
       });
 
       if (res.ok) {
         setSaved(true);
         setTimeout(() => setSaved(false), 3000);
-        
-        if (settings.theme !== "system") {
-          document.documentElement.classList.toggle("dark", settings.theme === "dark");
-        }
       }
     } catch (error) {
-      console.error("Failed to save settings:", error);
+      console.error("Failed to save API keys:", error);
     } finally {
       setSaving(false);
     }
+  };
+
+  const toggleShowKey = (field: string) => {
+    setShowKeys(prev => ({ ...prev, [field]: !prev[field] }));
   };
 
   if (status === "loading" || loading) {
@@ -106,184 +97,272 @@ export default function SettingsPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-6">
-      <div className="max-w-4xl mx-auto space-y-6">
+      <div className="max-w-3xl mx-auto space-y-6">
+        {/* Header */}
         <div>
-          <h1 className="text-3xl font-bold">Settings</h1>
+          <h1 className="text-3xl font-bold flex items-center gap-3">
+            <Key className="w-8 h-8" />
+            Settings
+          </h1>
           <p className="text-muted-foreground mt-1">
-            Manage your account settings and preferences
+            Kelola API keys untuk integrasi platform media sosial
           </p>
         </div>
 
-        {/* User Profile Card */}
+        {/* User Info */}
         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 p-6">
           <div className="flex items-center gap-4">
             {session.user?.image ? (
               <img
                 src={session.user.image}
                 alt={session.user.name || "User"}
-                className="w-16 h-16 rounded-full"
+                className="w-12 h-12 rounded-full"
               />
             ) : (
-              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center">
-                <span className="text-2xl text-white font-bold">
+              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center">
+                <span className="text-xl text-white font-bold">
                   {session.user?.name?.charAt(0) || "U"}
                 </span>
               </div>
             )}
             <div>
-              <h2 className="text-xl font-semibold">{session.user?.name}</h2>
-              <p className="text-muted-foreground">{session.user?.email}</p>
-              <div className="flex items-center gap-2 mt-2">
+              <h2 className="text-lg font-semibold">{session.user?.name}</h2>
+              <p className="text-sm text-muted-foreground">{session.user?.email}</p>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="text-xs bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 px-2 py-1 rounded-full flex items-center gap-1">
+                  <Shield className="w-3 h-3" />
+                  Google OAuth
+                </span>
                 {isAdmin && (
                   <span className="text-xs bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 px-2 py-1 rounded-full">
                     Admin
                   </span>
                 )}
-                <span className="text-xs bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 px-2 py-1 rounded-full flex items-center gap-1">
-                  <Shield className="w-3 h-3" />
-                  Google OAuth
-                </span>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Appearance Settings */}
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 p-6">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
-              <Palette className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+        {/* ==================== */}
+        {/* 1. COMPOSIO (TOP) */}
+        {/* ==================== */}
+        <div className="bg-gradient-to-br from-purple-600 to-blue-600 rounded-2xl border border-purple-500/50 p-6 text-white">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-2 bg-white/20 rounded-lg">
+              <Zap className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-semibold">Appearance</h3>
-              <p className="text-sm text-muted-foreground">Customize how the dashboard looks</p>
+              <h3 className="font-semibold text-lg flex items-center gap-2">
+                Composio 
+                <span className="text-xs bg-white/20 px-2 py-0.5 rounded-full">WAJIB</span>
+              </h3>
+              <p className="text-sm text-white/80">Gratis - Koneksi social media</p>
+            </div>
+          </div>
+
+          <div className="bg-white/10 rounded-xl p-4 space-y-3">
+            <p className="text-sm font-medium">Platform yang didukung:</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              <div className="flex items-center gap-2 bg-white/10 rounded-lg p-3">
+                <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
+                  <span className="text-xs font-bold">IG</span>
+                </div>
+                <div>
+                  <p className="text-xs font-medium">Instagram</p>
+                  <p className="text-[10px] text-white/70">Followers, Posts</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 bg-white/10 rounded-lg p-3">
+                <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center">
+                  <span className="text-xs font-bold">f</span>
+                </div>
+                <div>
+                  <p className="text-xs font-medium">Facebook</p>
+                  <p className="text-[10px] text-white/70">Page Stats</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 bg-white/10 rounded-lg p-3">
+                <div className="w-8 h-8 bg-gradient-to-br from-red-500 to-red-600 rounded-lg flex items-center justify-center">
+                  <span className="text-xs font-bold">YT</span>
+                </div>
+                <div>
+                  <p className="text-xs font-medium">YouTube</p>
+                  <p className="text-[10px] text-white/70">Subscribers</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 bg-white/10 rounded-lg p-3">
+                <div className="w-8 h-8 bg-gradient-to-br from-blue-400 to-blue-500 rounded-lg flex items-center justify-center">
+                  <Globe className="w-4 h-4" />
+                </div>
+                <div>
+                  <p className="text-xs font-medium">GDrive</p>
+                  <p className="text-[10px] text-white/70">Cloud Storage</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 bg-white/10 rounded-lg p-3">
+                <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-blue-700 rounded-lg flex items-center justify-center">
+                  <span className="text-xs font-bold">MA</span>
+                </div>
+                <div>
+                  <p className="text-xs font-medium">Meta Ads</p>
+                  <p className="text-[10px] text-white/70">Ads Insights</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 p-4 bg-white/10 rounded-xl">
+            <p className="text-sm font-medium mb-2">Cara Setup:</p>
+            <ol className="text-sm space-y-1 text-white/90">
+              <li>1. Buka <a href="https://app.composio.dev" target="_blank" className="underline font-medium hover:text-white">app.composio.dev</a></li>
+              <li>2. Daftar / Login dengan Google account</li>
+              <li>3. Klik "Add New Connection"</li>
+              <li>4. Pilih platform satu per satu (Instagram, Facebook, YouTube, GDrive, Meta Ads)</li>
+              <li>5. Berikan permissions yang diminta</li>
+            </ol>
+          </div>
+
+          <div className="mt-4 flex items-center gap-2 text-sm bg-yellow-500/20 rounded-lg p-3 border border-yellow-400/30">
+            <AlertCircle className="w-4 h-4 text-yellow-300" />
+            <span>Composio <strong>gratis</strong> dengan limits tertentu. Untuk production, mungkin perlu upgrade plan.</span>
+          </div>
+        </div>
+
+        {/* ==================== */}
+        {/* 2. ZERNIO (MIDDLE) */}
+        {/* ==================== */}
+        <div className="bg-gradient-to-br from-pink-600 to-purple-600 rounded-2xl border border-pink-500/50 p-6 text-white">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-2 bg-white/20 rounded-lg">
+              <Zap className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-lg flex items-center gap-2">
+                Zernio API 
+                <span className="text-xs bg-white/20 px-2 py-0.5 rounded-full">WAJIB</span>
+              </h3>
+              <p className="text-sm text-white/80">Berbayar - TikTok & Meta Ads</p>
+            </div>
+          </div>
+
+          <div className="bg-white/10 rounded-xl p-4 space-y-3">
+            <p className="text-sm font-medium">Platform yang didukung:</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex items-center gap-2 bg-white/10 rounded-lg p-3">
+                <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center">
+                  <span className="text-xs font-bold text-white">♪</span>
+                </div>
+                <div>
+                  <p className="text-xs font-medium">TikTok</p>
+                  <p className="text-[10px] text-white/70">Analytics</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 bg-white/10 rounded-lg p-3">
+                <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-blue-700 rounded-lg flex items-center justify-center">
+                  <span className="text-xs font-bold">MA</span>
+                </div>
+                <div>
+                  <p className="text-xs font-medium">Meta Ads</p>
+                  <p className="text-[10px] text-white/70">Ads Insights</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-4 mt-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium flex items-center gap-2">
+                Zernio API Key
+              </label>
+              <div className="relative">
+                <input
+                  type={showKeys.zernio_api_key ? "text" : "password"}
+                  value={apiKeys.zernio_api_key}
+                  onChange={(e) => setApiKeys({ ...apiKeys, zernio_api_key: e.target.value })}
+                  placeholder="Masukkan Zernio API Key..."
+                  className="w-full p-3 pr-12 rounded-lg border border-white/20 bg-white/10 text-white placeholder:text-white/50 font-mono text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={() => toggleShowKey("zernio_api_key")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-white/70 hover:text-white"
+                >
+                  {showKeys.zernio_api_key ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              </div>
+              <p className="text-xs text-white/70">
+                Daftar di <a href="https://zernio.com" target="_blank" className="underline hover:text-white">zernio.com</a> → Get API Key
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-4 flex items-center gap-2 text-sm bg-yellow-500/20 rounded-lg p-3 border border-yellow-400/30">
+            <AlertCircle className="w-4 h-4 text-yellow-300" />
+            <span>1 API key bisa konek ke <strong>semua platform</strong>. Berbayar jika lebih dari 2 akun.</span>
+          </div>
+        </div>
+
+        {/* ==================== */}
+        {/* 3. META TOKEN (BOTTOM) */}
+        {/* ==================== */}
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-2 bg-slate-100 dark:bg-slate-800 rounded-lg">
+              <Link2 className="w-5 h-5 text-slate-600 dark:text-slate-400" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-lg flex items-center gap-2">
+                Meta Graph API Token
+                <span className="text-xs bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded-full">OPSIONAL</span>
+              </h3>
+              <p className="text-sm text-muted-foreground">Alternatif backup untuk Meta Ads (bisa pakai Composio saja)</p>
             </div>
           </div>
 
           <div className="space-y-4">
-            <div>
-              <label className="text-sm font-medium block mb-2">Theme</label>
-              <div className="grid grid-cols-3 gap-3">
-                {["light", "dark", "system"].map((theme) => (
-                  <button
-                    key={theme}
-                    onClick={() => setSettings({ ...settings, theme })}
-                    className={cn(
-                      "p-3 rounded-lg border-2 transition-all text-center",
-                      settings.theme === theme
-                        ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
-                        : "border-slate-200 dark:border-slate-700 hover:border-slate-300"
-                    )}
-                  >
-                    <span className="text-lg mb-1 block">
-                      {theme === "light" ? "☀️" : theme === "dark" ? "🌙" : "💻"}
-                    </span>
-                    <span className="text-sm capitalize">{theme}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-sm font-medium block mb-2">Language</label>
-                <select
-                  value={settings.language}
-                  onChange={(e) => setSettings({ ...settings, language: e.target.value })}
-                  className="w-full p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"
+            <div className="space-y-2">
+              <label className="text-sm font-medium flex items-center gap-2">
+                Meta Access Token
+                <span className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded">
+                  Facebook/Instagram Ads
+                </span>
+              </label>
+              <div className="relative">
+                <input
+                  type={showKeys.meta_token ? "text" : "password"}
+                  value={apiKeys.meta_token}
+                  onChange={(e) => setApiKeys({ ...apiKeys, meta_token: e.target.value })}
+                  placeholder="Masukkan Meta Access Token..."
+                  className="w-full p-3 pr-12 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 font-mono text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={() => toggleShowKey("meta_token")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                 >
-                  {LANGUAGES.map((lang) => (
-                    <option key={lang.value} value={lang.value}>
-                      {lang.label}
-                    </option>
-                  ))}
-                </select>
+                  {showKeys.meta_token ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
               </div>
-              <div>
-                <label className="text-sm font-medium block mb-2">Timezone</label>
-                <select
-                  value={settings.timezone}
-                  onChange={(e) => setSettings({ ...settings, timezone: e.target.value })}
-                  className="w-full p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"
-                >
-                  {TIMEZONES.map((tz) => (
-                    <option key={tz.value} value={tz.value}>
-                      {tz.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <p className="text-xs text-muted-foreground">
+                Diperoleh dari <a href="https://developers.facebook.com/tools/explorer" target="_blank" className="text-blue-600 hover:underline">Graph API Explorer</a>
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 text-sm bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3 border border-blue-200 dark:border-blue-800">
+              <AlertCircle className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+              <span className="text-blue-800 dark:text-blue-300">
+                <strong>Opsional:</strong> Jika sudah konek Meta Ads via Composio, token ini tidak diperlukan.
+              </span>
             </div>
           </div>
         </div>
 
-        {/* Notifications Settings */}
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 p-6">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="p-2 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
-              <Bell className="w-5 h-5 text-orange-600 dark:text-orange-400" />
-            </div>
-            <div>
-              <h3 className="font-semibold">Notifications</h3>
-              <p className="text-sm text-muted-foreground">Manage your notification preferences</p>
-            </div>
-          </div>
 
-          <div className="flex items-center justify-between p-4 rounded-lg border border-slate-200 dark:border-slate-700">
-            <div>
-              <p className="font-medium">Email Notifications</p>
-              <p className="text-sm text-muted-foreground">Receive updates about your social media</p>
-            </div>
-            <button
-              onClick={() => setSettings({ ...settings, notifications: !settings.notifications })}
-              className={cn(
-                "w-12 h-6 rounded-full transition-colors relative",
-                settings.notifications ? "bg-blue-500" : "bg-slate-300 dark:bg-slate-600"
-              )}
-            >
-              <span
-                className={cn(
-                  "absolute top-1 w-4 h-4 rounded-full bg-white transition-transform",
-                  settings.notifications ? "left-7" : "left-1"
-                )}
-              />
-            </button>
-          </div>
-        </div>
-
-        {/* Connected Account */}
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 p-6">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
-              <User className="w-5 h-5 text-green-600 dark:text-green-400" />
-            </div>
-            <div>
-              <h3 className="font-semibold">Connected Account</h3>
-              <p className="text-sm text-muted-foreground">Your login method</p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3 p-4 rounded-lg bg-slate-50 dark:bg-slate-800/50">
-            <img
-              src="https://www.google.com/favicon.ico"
-              alt="Google"
-              className="w-6 h-6"
-            />
-            <div className="flex-1">
-              <p className="font-medium">Google Account</p>
-              <p className="text-sm text-muted-foreground">{session.user?.email}</p>
-            </div>
-            <span className="text-xs bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 px-2 py-1 rounded-full flex items-center gap-1">
-              <Check className="w-3 h-3" />
-              Connected
-            </span>
-          </div>
-        </div>
 
         {/* Save Button */}
-        <div className="flex justify-end">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 p-6">
           <button
-            onClick={saveSettings}
+            onClick={saveApiKeys}
             disabled={saving}
             className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50"
           >
@@ -294,41 +373,38 @@ export default function SettingsPage() {
             ) : (
               <Save className="w-4 h-4" />
             )}
-            {saving ? "Saving..." : saved ? "Saved!" : "Save Settings"}
+            {saving ? "Saving..." : saved ? "Saved!" : "Save API Keys"}
           </button>
         </div>
 
-        {/* Admin Section */}
-        {isAdmin && (
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-red-200 dark:border-red-800 p-6">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-lg">
-                <Shield className="w-5 h-5 text-red-600 dark:text-red-400" />
-              </div>
-              <div>
-                <h3 className="font-semibold">Admin Panel</h3>
-                <p className="text-sm text-muted-foreground">Manage users and system settings</p>
-              </div>
+        {/* Quick Guide */}
+        <div className="bg-blue-50 dark:bg-blue-900/20 rounded-2xl border border-blue-200 dark:border-blue-800 p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <AlertCircle className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+            <h3 className="font-semibold">Ringkasan Integration</h3>
+          </div>
+          <div className="text-sm space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-purple-500" />
+              <span><strong>Composio (Gratis):</strong> Instagram, Facebook, YouTube, GDrive, Meta Ads</span>
             </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <a
-                href="/users"
-                className="p-4 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-              >
-                <p className="font-medium">User Management</p>
-                <p className="text-sm text-muted-foreground">View and manage users</p>
-              </a>
-              <a
-                href="/debug"
-                className="p-4 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-              >
-                <p className="font-medium">Debug Panel</p>
-                <p className="text-sm text-muted-foreground">System diagnostics</p>
-              </a>
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-pink-500" />
+              <span><strong>Zernio (Berbayar):</strong> TikTok, Meta Ads</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-slate-500" />
+              <span><strong>Meta Token (Opsional):</strong> Backup untuk Meta Ads</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-black" />
+              <span><strong>X API (Opsional):</strong> Twitter/X Analytics</span>
             </div>
           </div>
-        )}
+          <p className="text-sm text-muted-foreground mt-3">
+            Untuk panduan lengkap, lihat menu <strong>Panduan</strong> di navigation bar.
+          </p>
+        </div>
       </div>
     </div>
   );

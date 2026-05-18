@@ -41,6 +41,8 @@ model User {
   accounts Account[]
   sessions Session[]
   socialAccounts SocialAccount[]
+  dashboardSettings DashboardSettings?
+  apiKeys ApiKey[]
 
   @@map("users")
 }
@@ -109,9 +111,10 @@ model SocialAccount {
   @@map("social_accounts")
 }
 
-// Daily analytics data
+// Daily analytics data - PER USER
 model Analytics {
   id          String   @id @default(cuid())
+  userId      String   // Each user has their own analytics data
   platform    Platform
   date        DateTime @db.Date
   followers   Int      @default(0)
@@ -128,7 +131,10 @@ model Analytics {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  @@unique([platform, date])
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, platform, date])
+  @@index([userId])
   @@index([platform])
   @@index([date])
   @@map("analytics")
@@ -155,10 +161,10 @@ model AdPerformance {
   @@map("ad_performance")
 }
 
-// Dashboard settings/preferences
+// Dashboard settings/preferences - PER USER
 model DashboardSettings {
   id           String   @id @default(cuid())
-  userId       String?
+  userId       String   @unique  // Each user has their own settings
   theme        String   @default("system") // light, dark, system
   language     String   @default("en")
   timezone     String   @default("Asia/Bangkok")
@@ -167,19 +173,23 @@ model DashboardSettings {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@map("dashboard_settings")
 }
 
-// API Keys storage (encrypted)
+// API Keys storage (encrypted) - PER USER
 model ApiKey {
   id        String   @id @default(cuid())
   userId    String
-  service   String   // composio, meta_graph, etc
+  service   String   // composio, meta_graph, zernio, x_api, etc
   apiKey    String   @db.Text // Encrypted
   metadata  Json?    // Additional info (expiry, scope, etc)
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, service])
   @@map("api_keys")

@@ -8,32 +8,15 @@ import { ThemeToggle } from "./theme-toggle";
 import { Avatar } from "./ui/avatar";
 import { Badge } from "./ui/badge";
 import {
-  LayoutDashboard,
-  BarChart3,
-  DollarSign,
-  Users,
-  Shield,
   Settings,
   Bug,
   LogOut,
   ChevronDown,
 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
+import { navItems, adminItems } from "./nav-items";
 
-// 2024-05-18: Removed Products and Schedule menu items
-
-const navItems = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/analytics", label: "Analytics", icon: BarChart3 },
-  { href: "/ads", label: "Ads Manager", icon: DollarSign },
-  { href: "/settings", label: "Settings", icon: Settings },
-];
-
-const adminItems = [
-  { href: "/users", label: "User Management", icon: Users },
-  { href: "/roles", label: "Role Management", icon: Shield },
-  { href: "/debug", label: "Debug", icon: Bug },
-];
+// 2024-05-18: Removed Products and Schedule menu items, now uses nav-items.tsx
 
 export function Navbar() {
   const pathname = usePathname();

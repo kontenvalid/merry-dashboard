@@ -1,9 +1,12 @@
 /**
  * Sync API - Fetches data from all platforms via Composio MCP
  * Stores results to database for dashboard display
+ * PER USER - uses session email to identify user
  */
 
 import { NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 import prisma from '@/lib/prisma'
 import { getApiKey } from '@/lib/api-key-store'
 
@@ -111,7 +114,7 @@ const IG_USER_ID = '27556603287273697'
 const YT_CHANNEL_ID = 'UCK2C25kK4E3PR6w0gPNCjaA'
 
 // Fetch Facebook data
-async function fetchFacebook(apiKey: string): Promise<Omit<Parameters<typeof prisma.analytics.create>[0]['data'], 'platform' | 'date'> | null> {
+async function fetchFacebook(apiKey: string): Promise<Omit<Parameters<typeof prisma.analytics.create>[0]['data'], 'userId' | 'platform' | 'date'> | null> {
   console.log('📘 Fetching Facebook...')
   
   // Get posts
@@ -182,7 +185,7 @@ async function fetchFacebook(apiKey: string): Promise<Omit<Parameters<typeof pri
 }
 
 // Fetch Instagram data
-async function fetchInstagram(apiKey: string): Promise<Omit<Parameters<typeof prisma.analytics.create>[0]['data'], 'platform' | 'date'> | null> {
+async function fetchInstagram(apiKey: string): Promise<Omit<Parameters<typeof prisma.analytics.create>[0]['data'], 'userId' | 'platform' | 'date'> | null> {
   console.log('📷 Fetching Instagram...')
   
   // Get media - use 'me' to get posts from connected account
@@ -238,7 +241,7 @@ async function fetchInstagram(apiKey: string): Promise<Omit<Parameters<typeof pr
 }
 
 // Fetch YouTube data
-async function fetchYouTube(apiKey: string): Promise<Omit<Parameters<typeof prisma.analytics.create>[0]['data'], 'platform' | 'date'> | null> {
+async function fetchYouTube(apiKey: string): Promise<Omit<Parameters<typeof prisma.analytics.create>[0]['data'], 'userId' | 'platform' | 'date'> | null> {
   console.log('📺 Fetching YouTube...')
   let data = await executeTool(apiKey, 'YOUTUBE_GET_CHANNEL_STATISTICS', { 
     channel_id: YT_CHANNEL_ID 
@@ -337,7 +340,8 @@ async function fetchGoogleDrive(apiKey: string) {
   }
 }
 
-export async function GET() {
+// GET - Sync data for the current authenticated user
+export async function GET(request: Request) {
   const startTime = Date.now()
   const result: any = {
     success: false,
@@ -348,9 +352,32 @@ export async function GET() {
   }
 
   try {
-    // Get API keys
-    // Use the actual user ID from database
-    const userId = 'cmopvdcrn00004e1xbsct0hbq'
+    // Get session to identify user
+    const session = await getServerSession(authOptions)
+    
+    if (!session?.user?.email) {
+      return NextResponse.json({ 
+        success: false, 
+        error: 'Unauthorized - Please login first' 
+      }, { status: 401 })
+    }
+
+    // Get user from database
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email }
+    })
+
+    if (!user) {
+      return NextResponse.json({ 
+        success: false, 
+        error: 'User not found' 
+      }, { status: 404 })
+    }
+
+    const userId = user.id
+    console.log('🔄 Sync started for user:', user.email, '(ID:', userId, ')')
+
+    // Get API keys for this user
     const composioKey = await getApiKey(userId, 'composio')
     const metaToken = await getApiKey(userId, 'meta_graph')
 
@@ -362,7 +389,7 @@ export async function GET() {
       }, { status: 400 })
     }
 
-    console.log('🔑 API keys loaded, starting sync...')
+    console.log('🔑 API keys loaded, starting sync for user:', user.email)
 
     // Fetch all platforms
     // Use UTC date for consistency
@@ -374,12 +401,23 @@ export async function GET() {
       const fbData = await fetchFacebook(composioKey)
       if (fbData) {
         await prisma.analytics.upsert({
-          where: { platform_date: { platform: 'FACEBOOK' as const, date: utcDate } },
-          update: { ...fbData, platform: 'FACEBOOK' as const },
-          create: { platform: 'FACEBOOK' as const, date: utcDate, ...fbData }
+          where: { 
+            userId_platform_date: { 
+              userId: userId,
+              platform: 'FACEBOOK' as const, 
+              date: utcDate 
+            }
+          },
+          update: { ...fbData },
+          create: { 
+            userId: userId,
+            platform: 'FACEBOOK' as const, 
+            date: utcDate, 
+            ...fbData 
+          }
         })
         result.platforms.push({ platform: 'Facebook', success: true, data: fbData })
-        console.log('✅ Facebook synced:', fbData)
+        console.log('✅ Facebook synced for', user.email, ':', fbData)
       }
     } catch (e: any) {
       console.error('Facebook error:', e)
@@ -391,12 +429,23 @@ export async function GET() {
       const igData = await fetchInstagram(composioKey)
       if (igData) {
         await prisma.analytics.upsert({
-          where: { platform_date: { platform: 'INSTAGRAM' as const, date: utcDate } },
-          update: { ...igData, platform: 'INSTAGRAM' as const },
-          create: { platform: 'INSTAGRAM' as const, date: utcDate, ...igData }
+          where: { 
+            userId_platform_date: { 
+              userId: userId,
+              platform: 'INSTAGRAM' as const, 
+              date: utcDate 
+            }
+          },
+          update: { ...igData },
+          create: { 
+            userId: userId,
+            platform: 'INSTAGRAM' as const, 
+            date: utcDate, 
+            ...igData 
+          }
         })
         result.platforms.push({ platform: 'Instagram', success: true, data: igData })
-        console.log('✅ Instagram synced:', igData)
+        console.log('✅ Instagram synced for', user.email, ':', igData)
       }
     } catch (e: any) {
       console.error('Instagram error:', e)
@@ -408,12 +457,23 @@ export async function GET() {
       const ytData = await fetchYouTube(composioKey)
       if (ytData) {
         await prisma.analytics.upsert({
-          where: { platform_date: { platform: 'YOUTUBE' as const, date: utcDate } },
-          update: { ...ytData, platform: 'YOUTUBE' as const },
-          create: { platform: 'YOUTUBE' as const, date: utcDate, ...ytData }
+          where: { 
+            userId_platform_date: { 
+              userId: userId,
+              platform: 'YOUTUBE' as const, 
+              date: utcDate 
+            }
+          },
+          update: { ...ytData },
+          create: { 
+            userId: userId,
+            platform: 'YOUTUBE' as const, 
+            date: utcDate, 
+            ...ytData 
+          }
         })
         result.platforms.push({ platform: 'YouTube', success: true, data: ytData })
-        console.log('✅ YouTube synced:', ytData)
+        console.log('✅ YouTube synced for', user.email, ':', ytData)
       }
     } catch (e: any) {
       console.error('YouTube error:', e)
@@ -425,12 +485,12 @@ export async function GET() {
       if (metaToken) {
         const adsData = await fetchMetaAds(metaToken)
         await prisma.dashboardSettings.upsert({
-          where: { id: 'metaAds' },
+          where: { userId: userId },
           update: { metaAdsData: JSON.stringify(adsData) },
-          create: { id: 'metaAds', userId, metaAdsData: JSON.stringify(adsData) }
+          create: { userId: userId, metaAdsData: JSON.stringify(adsData) }
         })
         result.platforms.push({ platform: 'Meta Ads', success: true, ...adsData })
-        console.log('✅ Meta Ads synced:', adsData.campaigns.length, 'campaigns, $' + adsData.totalSpend)
+        console.log('✅ Meta Ads synced for', user.email, ':', adsData.campaigns.length, 'campaigns, $' + adsData.totalSpend)
       }
     } catch (e: any) {
       console.error('Meta Ads error:', e)
@@ -441,12 +501,12 @@ export async function GET() {
     try {
       const gdriveData = await fetchGoogleDrive(composioKey)
       await prisma.dashboardSettings.upsert({
-        where: { id: 'gdrive' },
+        where: { userId: userId },
         update: { googleDriveData: JSON.stringify(gdriveData) },
-        create: { id: 'gdrive', userId, googleDriveData: JSON.stringify(gdriveData) }
+        create: { userId: userId, googleDriveData: JSON.stringify(gdriveData) }
       })
       result.platforms.push({ platform: 'Google Drive', success: true, fileCount: gdriveData.fileCount })
-      console.log('✅ Google Drive synced:', gdriveData.fileCount, 'files')
+      console.log('✅ Google Drive synced for', user.email, ':', gdriveData.fileCount, 'files')
     } catch (e: any) {
       console.error('Google Drive error:', e)
       result.errors.push({ platform: 'Google Drive', error: e.message })
@@ -454,8 +514,10 @@ export async function GET() {
 
     result.success = result.platforms.length > 0
     result.durationMs = Date.now() - startTime
+    result.userId = userId
+    result.userEmail = user.email
 
-    console.log('\n=== Sync Complete ===')
+    console.log('\n=== Sync Complete for', user.email, '===')
     console.log(`Success: ${result.success}`)
     console.log(`Platforms: ${result.platforms.length}`)
     console.log(`Errors: ${result.errors.length}`)
