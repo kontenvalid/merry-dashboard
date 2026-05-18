@@ -38,9 +38,8 @@ export async function saveApiKey(userId: string, service: string, apiKey: string
   })
 }
 
-// Get API key from database, fallback to env vars
+// Get API key from database - NO FALLBACK to env vars (per-user isolation)
 export async function getApiKey(userId: string, service: string): Promise<string | null> {
-  // First try database
   const record = await prisma.apiKey.findUnique({
     where: {
       userId_service: { userId, service }
@@ -51,21 +50,12 @@ export async function getApiKey(userId: string, service: string): Promise<string
     try {
       return decodeKey(record.apiKey)
     } catch {
-      // Fall through to env
+      return null
     }
   }
   
-  // Fallback to env vars
-  if (service === 'composio' && FALLBACK_COMPOSIO_KEY) {
-    console.log('Using fallback Composio key from env')
-    return FALLBACK_COMPOSIO_KEY
-  }
-  
-  if (service === 'meta_graph' && FALLBACK_META_TOKEN) {
-    console.log('Using fallback Meta token from env')
-    return FALLBACK_META_TOKEN
-  }
-  
+  // NO FALLBACK - each user must configure their own keys
+  // This ensures proper per-user data isolation
   return null
 }
 

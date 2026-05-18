@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
-import prisma from '@/lib/prisma'
-
-const COMPOSIO_API_KEY = process.env.COMPOSIO_API_KEY || 'ck_81LPoF-vaCnWO8LTJ1nF'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { getApiKey } from '@/lib/api-key-store'
 
 // Meta Ads accounts
 const META_ADS_ACCOUNTS = [
@@ -11,23 +11,8 @@ const META_ADS_ACCOUNTS = [
   { id: 'act_2061230484461298', currency: 'IDR', name: 'kontenval.id' }
 ]
 
-// Get API key from database or env
-async function getComposioKey(): Promise<string> {
-  const record = await prisma.apiKey.findUnique({
-    where: { userId_service: { userId: 'cmopvdcrn00004e1xbsct0hbq', service: 'composio' } }
-  })
-  
-  if (record?.isActive && record.apiKey) {
-    return Buffer.from(record.apiKey, 'base64').toString('utf8')
-  }
-  
-  return COMPOSIO_API_KEY
-}
-
 // Call Composio Meta Ads API
-async function callComposioApi(toolName: string, params: Record<string, any>) {
-  const apiKey = await getComposioKey()
-  
+async function callComposioApi(apiKey: string, toolName: string, params: Record<string, any>) {
   const response = await fetch('https://api.composio.io/v1/tools/execute', {
     method: 'POST',
     headers: {
@@ -48,102 +33,169 @@ async function callComposioApi(toolName: string, params: Record<string, any>) {
   return response.json()
 }
 
+// Currency configuration
+const CURRENCY_CONFIG: Record<string, { symbol: string; locale: string; decimals: number }> = {
+  'IDR': { symbol: 'Rp', locale: 'id-ID', decimals: 0 },
+  'USD': { symbol: '$', locale: 'en-US', decimals: 2 },
+  'EUR': { symbol: '€', locale: 'de-DE', decimals: 2 },
+  'GBP': { symbol: '£', locale: 'en-GB', decimals: 2 },
+  'JPY': { symbol: '¥', locale: 'ja-JP', decimals: 0 },
+  'MYR': { symbol: 'RM', locale: 'ms-MY', decimals: 2 },
+  'SGD': { symbol: 'S$', locale: 'en-SG', decimals: 2 },
+  'THB': { symbol: '฿', locale: 'th-TH', decimals: 2 },
+};
+
 export async function GET() {
   try {
-    console.log('Fetching Meta Ads via Composio...')
+    // Get session to identify user
+    const session = await getServerSession(authOptions)
     
-    // Step 1: Get ad accounts
-    const accountsRes = await callComposioApi('METAADS_GET_AD_ACCOUNTS', {
-      limit: 10,
-      fields: 'id,account_id,name,currency,account_status'
+    if (!session?.user?.email) {
+      return NextResponse.json({ 
+        success: false, 
+        error: 'Unauthorized - Please login first' 
+      }, { status: 401 })
+    }
+
+    // Get user from database
+    const { default: prisma } = await import('@/lib/prisma')
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email }
     })
 
-    console.log('Accounts response:', JSON.stringify(accountsRes).substring(0, 500))
-    
-    const accountsData = accountsRes?.results?.[0]?.data?.data || accountsRes?.data?.data || []
-    
-    const accounts = accountsData.map((acc: any) => ({
-      id: acc.id || acc.account_id,
-      accountId: acc.account_id,
-      name: acc.name,
-      currency: acc.currency,
-      status: acc.account_status
-    }))
+    if (!user) {
+      return NextResponse.json({ 
+        success: false, 
+        error: 'User not found' 
+      }, { status: 404 })
+    }
 
-    // If no accounts from API, use default accounts
-    const finalAccounts = accounts.length > 0 ? accounts : META_ADS_ACCOUNTS
+    const userId = user.id
+    console.log('Meta Ads v2 for user:', user.email, '(ID:', userId, ')')
 
-    // Step 2: Get insights for each account
+    // Get API keys for this user
+    const composioKey = await getApiKey(userId, 'composio')
+    const metaToken = await getApiKey(userId, 'meta_graph')
+
+    if (!composioKey) {
+      return NextResponse.json({
+        success: false,
+        error: 'Composio API key not found',
+        message: 'Please configure Composio API key in Settings',
+        currency: null
+      }, { status: 400 })
+    }
+
+    if (!metaToken) {
+      return NextResponse.json({
+        success: false,
+        error: 'Meta Graph API token not found',
+        message: 'Please configure Meta Graph API token in Settings',
+        currency: null
+      }, { status: 400 })
+    }
+
+    // Fetch campaigns from each account
     const campaigns: any[] = []
     let totalSpend = 0
     let totalClicks = 0
     let totalImpressions = 0
+    let detectedCurrency = 'IDR'
 
-    for (const account of finalAccounts) {
+    const META_API_BASE = 'https://graph.facebook.com/v21.0'
+
+    // Try to detect currency from account
+    for (const account of META_ADS_ACCOUNTS) {
       try {
-        const insightsRes = await callComposioApi('METAADS_GET_INSIGHTS', {
-          object_id: account.id,
-          level: 'account',
-          fields: 'impressions,clicks,spend,reach,cpc,cpm,campaign_name',
-          date_preset: 'last_30d'
-        })
-
-        console.log(`Insights for ${account.id}:`, JSON.stringify(insightsRes).substring(0, 300))
+        const accountRes = await fetch(
+          `${META_API_BASE}/${account.id}?fields=id,name,account_currency&access_token=${metaToken}`
+        )
         
-        const insightsData = insightsRes?.results?.[0]?.data?.data || insightsRes?.data?.data || []
-        
-        for (const insight of insightsData) {
-          const spend = parseFloat(insight.spend || '0')
-          const clicks = parseInt(insight.clicks || '0')
-          const impressions = parseInt(insight.impressions || '0')
-
-          campaigns.push({
-            accountId: account.id,
-            accountName: account.name,
-            currency: account.currency,
-            name: insight.campaign_name || 'All Campaigns',
-            status: 'ACTIVE',
-            spend,
-            impressions,
-            clicks,
-            reach: parseInt(insight.reach || '0'),
-            cpc: parseFloat(insight.cpc || '0'),
-            cpm: parseFloat(insight.cpm || '0')
-          })
-
-          totalSpend += spend
-          totalClicks += clicks
-          totalImpressions += impressions
+        if (accountRes.ok) {
+          const accountData = await accountRes.json()
+          if (accountData.account_currency) {
+            detectedCurrency = accountData.account_currency
+            break
+          }
         }
       } catch (e) {
-        console.warn(`Failed to get insights for ${account.id}:`, e)
+        console.warn(`Failed to get currency for ${account.id}`)
+      }
+    }
+
+    // Fetch insights from each account
+    for (const account of META_ADS_ACCOUNTS) {
+      try {
+        const insightsRes = await fetch(
+          `${META_API_BASE}/${account.id}/insights?fields=impressions,clicks,spend,reach,cpc,cpm&date_preset=last_30d&access_token=${metaToken}`
+        )
+
+        if (insightsRes.ok) {
+          const data = await insightsRes.json()
+          
+          // Check for currency in response
+          if (data.data?.[0]?.account_currency) {
+            detectedCurrency = data.data[0].account_currency
+          }
+          
+          if (data.data?.length > 0) {
+            for (const insight of data.data) {
+              const spend = parseFloat(insight.spend || '0')
+              const clicks = parseInt(insight.clicks || '0')
+              const impressions = parseInt(insight.impressions || '0')
+              
+              campaigns.push({
+                accountId: account.id,
+                accountName: account.name,
+                name: account.name + ' - Summary',
+                status: spend > 0 ? 'ACTIVE' : 'INACTIVE',
+                spend,
+                impressions,
+                clicks,
+                reach: parseInt(insight.reach || '0'),
+                cpc: parseFloat(insight.cpc || '0'),
+                cpm: parseFloat(insight.cpm || '0'),
+                currency: detectedCurrency
+              })
+              
+              totalSpend += spend
+              totalClicks += clicks
+              totalImpressions += impressions
+            }
+          }
+        }
+      } catch (e) {
+        console.warn(`Failed to fetch insights for ${account.id}:`, e)
       }
     }
 
     const avgCPC = totalClicks > 0 ? totalSpend / totalClicks : 0
+    const avgCPM = totalImpressions > 0 ? (totalSpend / totalImpressions) * 1000 : 0
+    const currencySymbol = CURRENCY_CONFIG[detectedCurrency]?.symbol || detectedCurrency
 
     return NextResponse.json({
       success: true,
-      source: 'composio_metaads',
-      timestamp: new Date().toISOString(),
-      accounts: finalAccounts,
+      source: 'meta_graph_api',
+      currency: detectedCurrency,
+      currencySymbol,
+      accounts: META_ADS_ACCOUNTS.map(a => ({ ...a, currency: detectedCurrency, currencySymbol })),
       campaigns,
       summary: {
         totalSpend,
-        totalCampaigns: campaigns.length,
+        totalCampaigns: campaigns.filter(c => c.status === 'ACTIVE').length,
         totalClicks,
         totalImpressions,
         avgCPC,
-        avgCPM: totalImpressions > 0 ? (totalSpend / totalImpressions) * 1000 : 0
+        avgCPM
       }
     })
+
   } catch (error: any) {
-    console.error('Meta Ads API error:', error)
+    console.error('Meta Ads v2 API error:', error)
     return NextResponse.json({
       success: false,
-      source: 'error',
       error: error.message,
-      stack: error.stack
+      currency: null
     }, { status: 500 })
   }
 }
