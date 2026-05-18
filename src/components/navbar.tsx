@@ -11,29 +11,27 @@ import {
   LayoutDashboard,
   BarChart3,
   DollarSign,
-  Package,
   Users,
   Shield,
   Settings,
   Bug,
   LogOut,
   ChevronDown,
-  Calendar,
 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
+
+// 2024-05-18: Removed Products and Schedule menu items
 
 const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/ads", label: "Ads Manager", icon: DollarSign },
-  { href: "/products", label: "Products", icon: Package },
+  { href: "/settings", label: "Settings", icon: Settings },
 ];
 
 const adminItems = [
-  { href: "/schedule", label: "Schedule", icon: Calendar },
   { href: "/users", label: "User Management", icon: Users },
   { href: "/roles", label: "Role Management", icon: Shield },
-  { href: "/settings", label: "Settings", icon: Settings },
   { href: "/debug", label: "Debug", icon: Bug },
 ];
 
@@ -44,6 +42,7 @@ export function Navbar() {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const adminMenuRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
+
 
   // Check if user is admin (for demo, check email)
   const isAdmin = session?.user?.email === "kontenval.id@gmail.com";
@@ -58,6 +57,7 @@ export function Navbar() {
         setShowUserMenu(false);
       }
     };
+
 
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
